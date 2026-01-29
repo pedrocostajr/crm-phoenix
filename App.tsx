@@ -112,7 +112,11 @@ const App: React.FC = () => {
 
   // Lead Handlers
   const handleSaveLead = async (leadData: Lead) => {
-    await storageService.saveLead(leadData);
+    const result = await storageService.saveLead(leadData);
+    if (!result.success) {
+      alert(`Erro ao salvar: ${result.error}`);
+      return;
+    }
     await fetchData(); // Refresh data
     setIsLeadModalOpen(false);
     setEditingLead(null);
@@ -129,7 +133,11 @@ const App: React.FC = () => {
     const lead = leads.find(l => l.id === id);
     if (lead) {
       const updatedLead = { ...lead, status: newStatus };
-      await storageService.saveLead(updatedLead);
+      const result = await storageService.saveLead(updatedLead);
+      if (!result.success) {
+        alert(`Erro ao atualizar status: ${result.error}`);
+        return;
+      }
       await fetchData();
     }
   };
@@ -141,7 +149,11 @@ const App: React.FC = () => {
         ...lead,
         interactions: [...lead.interactions, interaction]
       };
-      await storageService.saveLead(updatedLead);
+      const result = await storageService.saveLead(updatedLead);
+      if (!result.success) {
+        alert(`Erro ao salvar interação: ${result.error}`);
+        return;
+      }
       await fetchData();
       setActiveLead(updatedLead); // Update active lead
     }
