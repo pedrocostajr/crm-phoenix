@@ -1,0 +1,5 @@
+{
+  "name": "Phoenix CRM",
+  "description": "A comprehensive CRM for agencies featuring lead management, visual Kanban pipeline, dashboards, user management, and interaction history.",
+  "requestFramePermissions": []
+}
