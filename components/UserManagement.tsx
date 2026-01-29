@@ -1,21 +1,21 @@
 
 import React, { useState } from 'react';
 import { User, Lead } from '../types';
-import { 
-  Plus, 
-  Trash2, 
-  Edit2, 
-  Shield, 
-  Phone, 
-  Mail, 
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  Shield,
+  Phone,
+  Mail,
   MoreVertical,
   Circle
 } from 'lucide-react';
 
 interface UserManagementProps {
   users: User[];
-  onAdd: (user: User) => void;
-  onUpdate: (user: User) => void;
+  onAdd: (user: User) => Promise<boolean | void>;
+  onUpdate: (user: User) => Promise<boolean | void>;
   onDelete: (id: string) => void;
 }
 
@@ -41,17 +41,18 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
     setShowModal(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const userData = {
       ...formData,
-      id: editingUser?.id || `user_${Date.now()}`,
+      id: editingUser?.id || crypto.randomUUID(),
     } as User;
-    
-    if (editingUser) onUpdate(userData);
-    else onAdd(userData);
-    
-    setShowModal(false);
+
+    let success: boolean | void = true;
+    if (editingUser) success = await onUpdate(userData);
+    else success = await onAdd(userData);
+
+    if (success !== false) setShowModal(false);
   };
 
   return (
@@ -85,8 +86,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                 <p className="text-xs text-slate-500 font-medium">{user.role}</p>
               </div>
               <div className="absolute top-6 right-6 flex items-center gap-1">
-                 <div className={`w-2 h-2 rounded-full ${user.status === 'Ativo' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{user.status}</span>
+                <div className={`w-2 h-2 rounded-full ${user.status === 'Ativo' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{user.status}</span>
               </div>
             </div>
 
@@ -125,72 +126,72 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowModal(false)}></div>
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
-             <div className="p-6 border-b border-slate-100">
-                <h2 className="text-xl font-bold text-slate-800">{editingUser ? 'Editar Usuário' : 'Novo Usuário'}</h2>
-             </div>
-             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <div className="p-6 border-b border-slate-100">
+              <h2 className="text-xl font-bold text-slate-800">{editingUser ? 'Editar Usuário' : 'Novo Usuário'}</h2>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome Completo</label>
+                <input
+                  required
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none"
+                  placeholder="Nome do colaborador"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">E-mail Corporativo</label>
+                <input
+                  required
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none"
+                  placeholder="colaborador@phoenix.com"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome Completo</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cargo</label>
                   <input
                     required
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none"
-                    placeholder="Nome do colaborador"
+                    placeholder="Ex: Comercial"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">E-mail Corporativo</label>
-                  <input
-                    required
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none"
-                    placeholder="colaborador@phoenix.com"
-                  />
+                  >
+                    <option value="Ativo">Ativo</option>
+                    <option value="Inativo">Inativo</option>
+                  </select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cargo</label>
-                    <input
-                      required
-                      type="text"
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none"
-                      placeholder="Ex: Comercial"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none"
-                    >
-                      <option value="Ativo">Ativo</option>
-                      <option value="Inativo">Inativo</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Telefone (Opcional)</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none"
-                    placeholder="(00) 00000-0000"
-                  />
-                </div>
-                
-                <div className="pt-4 flex gap-3">
-                  <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl">Cancelar</button>
-                  <button type="submit" className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 shadow-lg">Salvar</button>
-                </div>
-             </form>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Telefone (Opcional)</label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none"
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl">Cancelar</button>
+                <button type="submit" className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 shadow-lg">Salvar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

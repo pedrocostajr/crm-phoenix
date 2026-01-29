@@ -93,7 +93,7 @@ export const storageService = {
     }));
   },
 
-  saveUser: async (user: User) => {
+  saveUser: async (user: User): Promise<{ success: boolean; error?: string }> => {
     const dbUser = {
       id: user.id,
       name: user.name,
@@ -110,7 +110,9 @@ export const storageService = {
 
     if (error) {
       console.error('Error saving user:', error);
+      return { success: false, error: error.message };
     }
+    return { success: true };
   },
 
   deleteUser: async (id: string) => {

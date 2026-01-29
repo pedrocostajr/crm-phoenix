@@ -20,7 +20,7 @@ export const KANBAN_COLUMNS: LeadStatus[] = [
 
 export const INITIAL_ADMINS = [
   {
-    id: 'admin1',
+    id: 'e28153f3-07c8-47fb-b935-430349896799',
     name: 'Administrador Leadsign',
     email: 'contato@leadsign.com.br',
     role: 'CEO',
@@ -29,7 +29,7 @@ export const INITIAL_ADMINS = [
     isAdmin: true
   },
   {
-    id: 'admin2',
+    id: '983c317f-1358-450f-a316-2e8f12349888',
     name: 'Moisés Rodrigues',
     email: 'contatomoisesrodrigues@gmail.com',
     role: 'Manager',

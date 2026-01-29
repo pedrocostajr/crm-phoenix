@@ -161,13 +161,23 @@ const App: React.FC = () => {
 
   // User Handlers
   const handleAddUser = async (user: User) => {
-    await storageService.saveUser(user);
+    const result = await storageService.saveUser(user);
+    if (!result.success) {
+      alert(`Erro ao salvar usuário: ${result.error}`);
+      return false;
+    }
     await fetchData();
+    return true;
   };
 
   const handleUpdateUser = async (user: User) => {
-    await storageService.saveUser(user);
+    const result = await storageService.saveUser(user);
+    if (!result.success) {
+      alert(`Erro ao atualizar usuário: ${result.error}`);
+      return false;
+    }
     await fetchData();
+    return true;
   };
 
   const handleDeleteUser = async (id: string) => {
