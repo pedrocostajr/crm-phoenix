@@ -1,5 +1,5 @@
 
-import { Lead, User } from '../types';
+import { Lead, User, LeadStatus } from '../types';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 
@@ -55,7 +55,9 @@ export const storageService = {
 
     if (error) {
       console.error('Error saving lead:', error);
+      return false;
     }
+    return true;
   },
 
   deleteLead: async (id: string) => {
@@ -174,7 +176,7 @@ export const storageService = {
     try {
       const data = await file.arrayBuffer();
       // @ts-ignore
-      const workbook = XLSX.read(data);
+      const workbook = XLSX.read(data, { type: 'array' });
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
@@ -187,14 +189,43 @@ export const storageService = {
 
         if (!name) return;
 
+        // Normalização de Status
+        let rawStatus = String(row['Status'] || '').toLowerCase().trim();
+        let status: LeadStatus = 'Novo Lead';
+
+        const statusMap: Record<string, LeadStatus> = {
+          'novo_lead': 'Novo Lead',
+          'novo lead': 'Novo Lead',
+          'em_contato': 'Em Contato',
+          'em contato': 'Em Contato',
+          'proposta_enviada': 'Proposta Enviada',
+          'proposta enviada': 'Proposta Enviada',
+          'negociacao': 'Negociação',
+          'negociação': 'Negociação',
+          'ganho': 'Ganho',
+          'perdido': 'Perdido'
+        };
+
+        if (statusMap[rawStatus]) {
+          status = statusMap[rawStatus];
+        } else {
+          // Fallback: Tenta capitalizar se não estiver no mapa
+          // Ex: "Novo Lead" já viria correto se não caísse no toLowerCase
+          // Mas como fizemos toLowerCase, verificamos se o original era válido
+          const originalParams = String(row['Status'] || '');
+          if (['Novo Lead', 'Em Contato', 'Proposta Enviada', 'Negociação', 'Ganho', 'Perdido'].includes(originalParams)) {
+            status = originalParams as LeadStatus;
+          }
+        }
+
         const lead: Lead = {
           id: crypto.randomUUID(),
           name: String(name),
           company: String(row['Empresa'] || row['Company'] || ''),
           email: String(email || ''),
           phone: String(row['Telefone'] || row['Phone'] || ''),
-          status: (row['Status'] as any) || 'Novo Lead',
-          estimatedValue: Number(row['Valor'] || row['Value'] || 0),
+          status: status,
+          estimatedValue: Number(row['Valor Estimado'] || row['Valor'] || row['Value'] || 0),
           origin: String(row['Origem'] || row['Origin'] || 'Importação'),
           responsible: String(row['Responsável'] || row['Responsible'] || 'Sistema'),
           observations: String(row['Observações'] || row['Notes'] || ''),
@@ -205,13 +236,23 @@ export const storageService = {
       });
 
       if (newLeads.length > 0) {
-        await Promise.all(newLeads.map(lead => storageService.saveLead(lead)));
+        const results = await Promise.all(newLeads.map(lead => storageService.saveLead(lead)));
+        const failures = results.filter(current => !current).length;
+
+        if (failures > 0) {
+          if (failures === newLeads.length) {
+            throw new Error("Erro de Banco de Dados: Nenhum lead foi salvo. Verifique as Permissões (RLS) no Supabase ou formato dos dados.");
+          }
+          alert(`Atenção: ${failures} leads falharam ao salvar, mas ${newLeads.length - failures} foram importados.`);
+        }
         return true;
       }
+      alert('Nenhum lead encontrado na planilha. Verifique se as colunas estão corretas (Nome, Email, Telefone, etc).');
       return false;
 
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to import Excel/CSV', e);
+      alert('Erro ao processar arquivo: ' + (e.message || e));
       return false;
     }
   }

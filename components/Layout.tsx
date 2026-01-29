@@ -1,11 +1,11 @@
 
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Table as TableIcon, 
-  Kanban, 
-  LogOut, 
+import {
+  LayoutDashboard,
+  Users,
+  Table as TableIcon,
+  Kanban,
+  LogOut,
   Settings,
   Flame,
   Download,
@@ -57,11 +57,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                activeTab === item.id 
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${activeTab === item.id
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
                   : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
+                }`}
             >
               <item.icon size={20} />
               <span className="font-medium">{item.label}</span>
@@ -70,20 +69,20 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-4">
-           <div className="flex gap-2">
-            <button 
+          <div className="flex gap-2">
+            <button
               onClick={() => storageService.exportData()}
               className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs transition-colors"
               title="Exportar Dados"
             >
               <Download size={14} /> Exportar
             </button>
-            <label className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs cursor-pointer transition-colors" title="Importar Dados">
-              <Upload size={14} /> Importar
+            <label className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs cursor-pointer transition-colors" title="Restaurar Backup (JSON)">
+              <Upload size={14} /> Restaurar
               <input type="file" className="hidden" accept=".json" onChange={handleImport} />
             </label>
           </div>
-          
+
           <div className="flex items-center gap-3 px-2">
             <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold text-white">
               {userName.charAt(0).toUpperCase()}
@@ -93,7 +92,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
               <p className="text-xs text-slate-500 truncate">Online</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={onLogout}
             className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-xl transition-all duration-200"
           >
@@ -107,25 +106,25 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-16 bg-white border-b flex items-center justify-between px-4 md:px-8">
           <div className="flex items-center gap-4 md:hidden">
-             <Flame size={24} className="text-blue-600" />
-             <span className="font-bold">PHOENIX</span>
+            <Flame size={24} className="text-blue-600" />
+            <span className="font-bold">PHOENIX</span>
           </div>
           <h1 className="text-lg font-semibold text-slate-800 hidden md:block">
             {menuItems.find(i => i.id === activeTab)?.label}
           </h1>
-          
+
           {/* Mobile Tab Switcher */}
           <div className="flex md:hidden gap-2">
-             {menuItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`p-2 rounded-lg ${activeTab === item.id ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}`}
-                >
-                  <item.icon size={18} />
-                </button>
-             ))}
-             <button onClick={onLogout} className="p-2 text-red-500"><LogOut size={18}/></button>
+            {menuItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`p-2 rounded-lg ${activeTab === item.id ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}`}
+              >
+                <item.icon size={18} />
+              </button>
+            ))}
+            <button onClick={onLogout} className="p-2 text-red-500"><LogOut size={18} /></button>
           </div>
         </header>
 
