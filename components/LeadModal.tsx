@@ -33,7 +33,7 @@ const LeadModal: React.FC<LeadModalProps> = ({ lead, users, onClose, onSave }) =
     e.preventDefault();
     onSave({
       ...formData as Lead,
-      id: lead?.id || `lead_${Date.now()}`,
+      id: lead?.id || crypto.randomUUID(),
       createdAt: lead?.createdAt || new Date().toISOString(),
       interactions: lead?.interactions || [],
     });
