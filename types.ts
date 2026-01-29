@@ -31,6 +31,7 @@ export interface User {
   phone: string;
   status: 'Ativo' | 'Inativo';
   isAdmin?: boolean;
+  password?: string;
 }
 
 export interface AuthState {

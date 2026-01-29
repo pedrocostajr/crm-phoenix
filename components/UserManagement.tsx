@@ -27,16 +27,18 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
     email: '',
     role: '',
     phone: '',
-    status: 'Ativo'
+    status: 'Ativo',
+    password: ''
   });
 
   const openModal = (user?: User) => {
     if (user) {
       setEditingUser(user);
-      setFormData(user);
+      setEditingUser(user);
+      setFormData({ ...user, password: '' });
     } else {
       setEditingUser(null);
-      setFormData({ name: '', email: '', role: '', phone: '', status: 'Ativo' });
+      setFormData({ name: '', email: '', role: '', phone: '', status: 'Ativo', password: '' });
     }
     setShowModal(true);
   };
@@ -47,6 +49,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
       ...formData,
       id: editingUser?.id || crypto.randomUUID(),
     } as User;
+
+    if (editingUser && !formData.password) {
+      userData.password = editingUser.password;
+    }
 
     let success: boolean | void = true;
     if (editingUser) success = await onUpdate(userData);
@@ -150,6 +156,19 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onAdd, onUpdate,
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none"
                   placeholder="colaborador@phoenix.com"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {editingUser ? 'Nova Senha (Opcional)' : 'Senha de Acesso'}
+                </label>
+                <input
+                  required={!editingUser}
+                  type="text"
+                  value={formData.password || ''}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none"
+                  placeholder={editingUser ? "Deixe em branco para manter" : "Crie uma senha de acesso"}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">

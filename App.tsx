@@ -91,7 +91,10 @@ const App: React.FC = () => {
     // Check for hardcoded admins first or existing users with default password
     const isAdmin = INITIAL_ADMINS.some(a => a.email.toLowerCase() === loginEmail.toLowerCase());
 
-    if ((isAdmin || foundUser) && loginPass === DEFAULT_PASSWORD) {
+    const isDefaultPassword = loginPass === DEFAULT_PASSWORD;
+    const isUserPassword = foundUser?.password && foundUser.password === loginPass;
+
+    if ((isAdmin || foundUser) && (isDefaultPassword || isUserPassword)) {
       const authUser = foundUser || INITIAL_ADMINS.find(a => a.email.toLowerCase() === loginEmail.toLowerCase())!;
       const newAuth = { user: authUser, isAuthenticated: true };
       setAuth(newAuth);

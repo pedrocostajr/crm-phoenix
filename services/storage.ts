@@ -89,7 +89,8 @@ export const storageService = {
       role: u.role,
       phone: u.phone,
       status: u.status,
-      isAdmin: u.is_admin
+      isAdmin: u.is_admin,
+      password: u.password
     }));
   },
 
@@ -101,7 +102,8 @@ export const storageService = {
       role: user.role,
       phone: user.phone,
       status: user.status,
-      is_admin: user.isAdmin
+      is_admin: user.isAdmin,
+      password: user.password
     };
 
     const { error } = await supabase
