@@ -1,21 +1,24 @@
 
 import React, { useState, useMemo } from 'react';
 import { Lead, LeadStatus } from '../types';
-import { 
-  Search, 
-  Filter, 
-  MoreHorizontal, 
-  Edit2, 
-  Trash2, 
-  Plus, 
-  ChevronLeft, 
+import {
+  Search,
+  Filter,
+  MoreHorizontal,
+  Edit2,
+  Trash2,
+  Plus,
+  ChevronLeft,
   ChevronRight,
   MessageSquare,
   Building2,
   Mail,
-  Phone
+  Phone,
+  Download,
+  Upload
 } from 'lucide-react';
 import { STATUS_CONFIG } from '../constants';
+import { storageService } from '../services/storage';
 
 interface LeadTableProps {
   leads: Lead[];
@@ -33,13 +36,13 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
 
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
-      const matchesSearch = 
+      const matchesSearch =
         lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         lead.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
         lead.email.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
       const matchesStatus = statusFilter === 'Todos' || lead.status === statusFilter;
-      
+
       return matchesSearch && matchesStatus;
     });
   }, [leads, searchTerm, statusFilter]);
@@ -49,6 +52,26 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  };
+
+
+  const handleExport = () => {
+    storageService.exportLeadsToCSV();
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const success = await storageService.importLeadsFromCSV(e.target.files[0]);
+      if (success) {
+        alert('Leads importados com sucesso!');
+        // Force refresh or callback might be needed if state doesn't update automatically
+        // In this simple app, we might need to trigger a reload or parent update. 
+        // Ideally LeadTable should receive leads as props (which it does), so the parent needs to refresh.
+        // But for now let's just show alert. The parent container likely fetches on mount or update.
+        // To fix this properly, we should probably call a prop like onRefresh or just window.location.reload() for a simple v1 fix
+        window.location.reload();
+      }
+    }
   };
 
   return (
@@ -81,13 +104,35 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
           </div>
         </div>
 
-        <button
-          onClick={onAdd}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all hover:scale-105"
-        >
-          <Plus size={20} />
-          Novo Lead
-        </button>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 px-4 py-2.5 rounded-xl font-medium transition-all cursor-pointer">
+            <Upload size={18} />
+            <span className="hidden sm:inline">Importar</span>
+            <input
+              type="file"
+              accept=".csv, .xls, .xlsx"
+              className="hidden"
+              onChange={handleImport}
+            />
+          </label>
+
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 px-4 py-2.5 rounded-xl font-medium transition-all"
+          >
+            <Download size={18} />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
+
+          <button
+            onClick={onAdd}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all hover:scale-105"
+          >
+            <Plus size={20} />
+            <span className="hidden sm:inline">Novo Lead</span>
+            <span className="sm:hidden">Novo</span>
+          </button>
+        </div>
       </div>
 
       {/* Table Content */}
@@ -138,21 +183,21 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
+                      <button
                         onClick={() => onInteraction(lead)}
                         className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Interações"
                       >
                         <MessageSquare size={18} />
                       </button>
-                      <button 
+                      <button
                         onClick={() => onEdit(lead)}
                         className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                         title="Editar"
                       >
                         <Edit2 size={18} />
                       </button>
-                      <button 
+                      <button
                         onClick={() => onDelete(lead.id)}
                         className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Excluir"
@@ -161,7 +206,7 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
                       </button>
                     </div>
                     <div className="group-hover:hidden text-slate-300">
-                       <MoreHorizontal size={20} />
+                      <MoreHorizontal size={20} />
                     </div>
                   </td>
                 </tr>
