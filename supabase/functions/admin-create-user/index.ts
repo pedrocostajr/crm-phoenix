@@ -133,7 +133,28 @@ serve(async (req) => {
     const userExists = existingUser.users.find(u => u.email === email)
 
     if (userExists) {
-      console.log('👤 User already exists, checking profile...')
+      console.log('👤 User already exists, updating auth data...')
+
+      // Atualizar senha e metadados do usuário existente
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        userExists.id,
+        {
+          password: requestBody.password || 'temp123456',
+          email_confirm: true,
+          user_metadata: {
+            full_name: full_name,
+          }
+        }
+      )
+
+      if (updateError) {
+        console.error('❌ Failed to update existing user:', updateError)
+        // Não lançar erro aqui para tentar verificar/criar perfil mesmo assim?
+        // Melhor lançar para garantir que a senha foi atualizada se esse era o objetivo
+        throw updateError
+      }
+
+      console.log('✅ User auth data updated')
 
       // Verificar se perfil já existe
       const { data: existingProfile, error: profileCheckError } = await supabaseAdmin
@@ -145,9 +166,24 @@ serve(async (req) => {
       console.log('🔍 Profile check result:', { existingProfile, profileCheckError })
 
       if (existingProfile) {
-        console.log('✅ User and profile already exist')
+        // Se perfil existe, garantir que está aprovado e atualizado
+        const { error: profileUpdateError } = await supabaseAdmin
+          .from('profiles')
+          .update({
+            full_name: full_name,
+            role: role,
+            approved: true
+          })
+          .eq('user_id', userExists.id)
+
+        if (profileUpdateError) {
+          console.error('❌ Failed to update existing profile:', profileUpdateError)
+        } else {
+          console.log('✅ Existing profile updated')
+        }
+
         return new Response(
-          JSON.stringify({ success: true, user: userExists, message: 'Usuário já existe' }),
+          JSON.stringify({ success: true, user: userExists, message: 'Usuário atualizado com sucesso' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         )
       } else {
@@ -172,7 +208,7 @@ serve(async (req) => {
 
         console.log('✅ Profile created for existing user')
         return new Response(
-          JSON.stringify({ success: true, user: userExists, message: 'Perfil criado para usuário existente' }),
+          JSON.stringify({ success: true, user: userExists, message: 'Perfil criado e senha atualizada para usuário existente' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         )
       }
