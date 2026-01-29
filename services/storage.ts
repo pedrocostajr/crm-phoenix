@@ -32,7 +32,7 @@ export const storageService = {
     }));
   },
 
-  saveLead: async (lead: Lead) => {
+  saveLead: async (lead: Lead): Promise<{ success: boolean; error?: string }> => {
     // Convert to snake_case for DB
     const dbLead = {
       id: lead.id,
@@ -45,7 +45,7 @@ export const storageService = {
       origin: lead.origin,
       responsible: lead.responsible,
       observations: lead.observations,
-      created_at: lead.createdAt,
+      created_at: lead.createdAt || new Date().toISOString(),
       interactions: lead.interactions
     };
 
@@ -55,9 +55,9 @@ export const storageService = {
 
     if (error) {
       console.error('Error saving lead:', error);
-      return false;
+      return { success: false, error: error.message };
     }
-    return true;
+    return { success: true };
   },
 
   deleteLead: async (id: string) => {
@@ -183,6 +183,34 @@ export const storageService = {
 
       const newLeads: any[] = [];
 
+      // Helpers within function scope for simplicity
+      const parseDate = (dateStr: any): string => {
+        if (!dateStr) return new Date().toISOString();
+        if (dateStr instanceof Date) return dateStr.toISOString();
+
+        // Handle Excel numeric date
+        if (typeof dateStr === 'number') {
+          const date = new Date(Math.round((dateStr - 25569) * 86400 * 1000));
+          return date.toISOString();
+        }
+
+        const str = String(dateStr).trim();
+        // Handle DD/MM/YYYY
+        if (str.match(/^\d{2}\/\d{2}\/\d{4}/)) {
+          const [day, month, year] = str.split('/');
+          return new Date(`${year}-${month}-${day}`).toISOString();
+        }
+        return new Date().toISOString();
+      };
+
+      const parseCurrency = (val: any): number => {
+        if (!val) return 0;
+        if (typeof val === 'number') return val;
+        // Brazil format: 1.000,00 -> remove dots, replace comma with dot
+        const clean = String(val).replace(/\./g, '').replace(',', '.');
+        return parseFloat(clean) || 0;
+      };
+
       jsonData.forEach((row: any) => {
         const name = row['Nome'] || row['Name'] || row['nome'];
         const email = row['Email'] || row['e-mail'] || row['email'];
@@ -209,9 +237,6 @@ export const storageService = {
         if (statusMap[rawStatus]) {
           status = statusMap[rawStatus];
         } else {
-          // Fallback: Tenta capitalizar se não estiver no mapa
-          // Ex: "Novo Lead" já viria correto se não caísse no toLowerCase
-          // Mas como fizemos toLowerCase, verificamos se o original era válido
           const originalParams = String(row['Status'] || '');
           if (['Novo Lead', 'Em Contato', 'Proposta Enviada', 'Negociação', 'Ganho', 'Perdido'].includes(originalParams)) {
             status = originalParams as LeadStatus;
@@ -225,25 +250,31 @@ export const storageService = {
           email: String(email || ''),
           phone: String(row['Telefone'] || row['Phone'] || ''),
           status: status,
-          estimatedValue: Number(row['Valor Estimado'] || row['Valor'] || row['Value'] || 0),
+          estimatedValue: parseCurrency(row['Valor Estimado'] || row['Valor'] || row['Value']),
           origin: String(row['Origem'] || row['Origin'] || 'Importação'),
           responsible: String(row['Responsável'] || row['Responsible'] || 'Sistema'),
           observations: String(row['Observações'] || row['Notes'] || ''),
-          createdAt: String(row['Data Criação'] || new Date().toISOString()),
+          createdAt: parseDate(row['Data Criação'] || row['Created At']),
           interactions: []
         };
         newLeads.push(lead);
       });
 
       if (newLeads.length > 0) {
-        const results = await Promise.all(newLeads.map(lead => storageService.saveLead(lead)));
-        const failures = results.filter(current => !current).length;
+        let lastError = "";
+        const results = await Promise.all(newLeads.map(async lead => {
+          const result = await storageService.saveLead(lead);
+          if (!result.success) lastError = result.error || "Unknown";
+          return result.success;
+        }));
+
+        const failures = results.filter(ok => !ok).length;
 
         if (failures > 0) {
           if (failures === newLeads.length) {
-            throw new Error("Erro de Banco de Dados: Nenhum lead foi salvo. Verifique as Permissões (RLS) no Supabase ou formato dos dados.");
+            throw new Error(`O Banco de Dados recusou todos os leads. Motivo: ${lastError}`);
           }
-          alert(`Atenção: ${failures} leads falharam ao salvar, mas ${newLeads.length - failures} foram importados.`);
+          alert(`Atenção: ${failures} leads falharam, mas ${newLeads.length - failures} foram salvos.`);
         }
         return true;
       }
