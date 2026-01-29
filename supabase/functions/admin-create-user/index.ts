@@ -129,8 +129,29 @@ serve(async (req) => {
 
     // Verificar se usuário já existe
     console.log('🔍 Checking if user already exists...')
-    const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers()
-    const userExists = existingUser.users.find(u => u.email === email)
+    let userExists = null;
+    let page = 1;
+    const perPage = 50;
+
+    // Search across pages
+    while (true) {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+        page: page,
+        perPage: perPage
+      })
+
+      if (error) {
+        console.error('❌ Error listing users:', error)
+        throw error
+      }
+
+      userExists = data.users.find(u => u.email === email)
+      if (userExists) break;
+
+      if (data.users.length < perPage) break;
+      page++;
+      if (page > 20) break; // Safety
+    }
 
     if (userExists) {
       console.log('👤 User already exists, updating auth data...')

@@ -94,11 +94,24 @@ export const AddUserForm = ({ onUserAdded }: AddUserFormProps) => {
       onUserAdded();
     } catch (error: any) {
       console.error('❌ Erro ao criar usuário:', error);
-      toast({
-        title: "Erro ao criar usuário",
-        description: error.message || 'Erro interno do servidor',
-        variant: "destructive",
-      });
+
+      const errorMessage = error.message || 'Erro interno do servidor';
+
+      if (errorMessage.includes('Invalid login credentials') ||
+        errorMessage.includes('credencial invalidada') ||
+        errorMessage.includes('Token')) {
+        toast({
+          title: "Sessão Inválida",
+          description: "Sua sessão de administrador pode ter expirado ou é inválida. Por favor, faça login novamente.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erro ao criar usuário",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
