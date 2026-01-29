@@ -20,29 +20,34 @@ Siga estes passos para configurar seu novo projeto Supabase e fazer sua aplicaç
 5. Clique em **"Run"** (botão verde no canto inferior direito).
    - Isso vai criar todas as tabelas (leads, users, boards, etc.) que o projeto precisa.
 
-## Passo 3: Pegar as Chaves de Acesso
-1. No painel do Supabase, vá em **Settings** (ícone de engrenagem) > **API**.
-2. Você verá duas informações importantes:
-   - **Project URL:** algo como `https://xyzabcdefg.supabase.co`
-   - **Project API keys:**
-     - `anon` `public`: Chave pública
-     - `service_role` `secret`: Chave secreta (Cuidado com essa!)
+## Passo 3: Pegar as Chaves de Acesso (JÁ RECUPERADAS)
+Você já me forneceu os dados, então apenas copie e cole onde indicado:
+
+**Dados do seu Projeto:**
+- **Project URL:** `https://neaxlhqzgaylvhdttqoe.supabase.co`
+- **Project ID:** `neaxlhqzgaylvhdttqoe`
+- **Anon Key (Public):** (O token longo começando com `eyJhbGciOiJIUzI1Ni...` que você me enviou)
 
 ## Passo 4: Atualizar no Vercel (Site)
-1. Vá para o painel do seu projeto na **Vercel**.
-2. Clique em **Settings** > **Environment Variables**.
-3. Atualize (ou crie) as variáveis:
-   - `VITE_SUPABASE_URL`: Cole a **Project URL**.
-   - `VITE_SUPABASE_ANON_KEY`: Cole a chave `anon` `public`.
-4. Vá na aba **Deployments** e clique em **Redeploy** no último deploy para que as mudanças façam efeito.
+1. Vá para o painel do seu projeto na **Vercel** > **Settings** > **Environment Variables**.
+2. Adicione/Atualize:
+   - `VITE_SUPABASE_URL`: `https://neaxlhqzgaylvhdttqoe.supabase.co`
+   - `VITE_SUPABASE_ANON_KEY`: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lYXhsaHF6Z2F5bHZoZHR0cW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MjczOTQsImV4cCI6MjA4NTMwMzM5NH0.cUJIyG7bCoUxl1r1dU69pKFoiumEA9TZBiMyKWDQdAU`
+3. Vá na aba **Deployments** e clique em **Redeploy**.
 
 ## Passo 5: Atualizar no GitHub (Workflow de Deploy)
-Para que a automação que eu criei funcione (e corrija o erro de "Invalid Credentials"):
-1. Vá no seu repositório GitHub.
-2. **Settings** > **Secrets and variables** > **Actions**.
-3. Atualize o `SUPABASE_PROJECT_ID`:
-   - O ID é a parte da URL: de `https://xyzabcdefg.supabase.co`, o ID é `xyzabcdefg`.
-4. Atualize o `SUPABASE_ACCESS_TOKEN` (se você mudou de conta Supabase, gere um novo, senão mantenha).
+Para a automação funcionar, precisamos de duas chaves no GitHub (**Settings** > **Secrets/Actions**):
+
+1. **`SUPABASE_PROJECT_ID`**:
+   - Valor: `neaxlhqzgaylvhdttqoe`
+
+2. **`SUPABASE_ACCESS_TOKEN`**:
+   - ⚠️ **ATENÇÃO:** Este **NÃO** é a chave que você me mandou (Service Role).
+   - Você precisa gerar um **Token Pessoal** novo.
+   - Vá em: [https://supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens)
+   - Clique em **Generate new token**.
+   - Dê um nome (ex: "GitHub Deploy") e copie esse código.
+   - Cole este código no segredo `SUPABASE_ACCESS_TOKEN` do GitHub.
 
 ## Passo 6: Finalizar
 1. Faça deploy da função Supabase. Como você atualizou o GitHub, vá na aba **Actions** do GitHub, selecione o workflow e clique em **Re-run**.
