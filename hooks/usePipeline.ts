@@ -15,8 +15,17 @@ export const usePipeline = () => {
 
             if (error) throw error;
 
-            if (data) {
+            if (data && data.length > 0) {
                 setStages(data);
+            } else {
+                // Fallback to default stages if DB is empty
+                setStages([
+                    { id: '1', name: 'Novo Lead', position: 0, color: 'bg-blue-500' },
+                    { id: '2', name: 'Em Contato', position: 1, color: 'bg-yellow-500' },
+                    { id: '3', name: 'Proposta Enviada', position: 2, color: 'bg-purple-500' },
+                    { id: '4', name: 'Negociação', position: 3, color: 'bg-orange-500' },
+                    { id: '5', name: 'Ganho', position: 4, color: 'bg-green-500' }
+                ]);
             }
         } catch (error) {
             console.error('Error fetching pipeline stages:', error);
