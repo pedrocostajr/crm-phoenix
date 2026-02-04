@@ -1,5 +1,12 @@
 
-export type LeadStatus = 'Novo Lead' | 'Em Contato' | 'Proposta Enviada' | 'Negociação' | 'Ganho' | 'Perdido';
+export type LeadStatus = string;
+
+export interface PipelineStage {
+  id: string;
+  name: string;
+  position: number;
+  color: string;
+}
 
 export interface Interaction {
   id: string;

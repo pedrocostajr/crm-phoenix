@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Lead } from '../types';
 import {
@@ -22,13 +21,15 @@ import {
   PieChart,
   Pie
 } from 'recharts';
-import { STATUS_CONFIG } from '../constants';
+import { usePipeline } from '../hooks/usePipeline';
 
 interface DashboardProps {
   leads: Lead[];
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ leads }) => {
+  const { stages } = usePipeline();
+
   const stats = useMemo(() => {
     const totalLeads = leads.length;
     const wonLeads = leads.filter(l => l.status === 'Ganho');
@@ -57,6 +58,39 @@ const Dashboard: React.FC<DashboardProps> = ({ leads }) => {
     { label: 'Valor em Pipeline', value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.pipelineValue), icon: Wallet, color: 'text-purple-600', bg: 'bg-purple-50' },
     { label: 'Taxa de Conversão', value: `${stats.conversionRate.toFixed(1)}%`, icon: TrendingUp, color: 'text-orange-600', bg: 'bg-orange-50' },
   ];
+
+  const getColorForStatus = (status: string) => {
+    const stage = stages.find(s => s.name.trim() === status.trim());
+    if (!stage) {
+      // Fallback colors for unknown statuses just to be colorful instead of black/blue
+      const hash = status.split('').reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
+      const hue = Math.abs(hash % 360);
+      return `hsl(${hue}, 70%, 50%)`;
+    }
+
+    const colorMap: Record<string, string> = {
+      'bg-slate-500': '#64748b',
+      'bg-red-500': '#ef4444',
+      'bg-orange-500': '#f97316',
+      'bg-amber-500': '#f59e0b',
+      'bg-yellow-500': '#eab308',
+      'bg-lime-500': '#84cc16',
+      'bg-green-500': '#22c55e',
+      'bg-emerald-500': '#10b981',
+      'bg-teal-500': '#14b8a6',
+      'bg-cyan-500': '#06b6d4',
+      'bg-sky-500': '#0ea5e9',
+      'bg-blue-500': '#3b82f6',
+      'bg-indigo-500': '#6366f1',
+      'bg-violet-500': '#8b5cf6',
+      'bg-purple-500': '#a855f7',
+      'bg-fuchsia-500': '#d946ef',
+      'bg-pink-500': '#ec4899',
+      'bg-rose-500': '#f43f5e'
+    };
+
+    return colorMap[stage.color] || '#3b82f6';
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -95,7 +129,7 @@ const Dashboard: React.FC<DashboardProps> = ({ leads }) => {
                 />
                 <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                   {stats.statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={STATUS_CONFIG[entry.name as keyof typeof STATUS_CONFIG]?.bg.split(' ')[1].replace('bg-', '#') || '#3b82f6'} />
+                    <Cell key={`cell-${index}`} fill={getColorForStatus(entry.name)} />
                   ))}
                 </Bar>
               </BarChart>
@@ -121,7 +155,7 @@ const Dashboard: React.FC<DashboardProps> = ({ leads }) => {
                   dataKey="value"
                 >
                   {stats.statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={STATUS_CONFIG[entry.name as keyof typeof STATUS_CONFIG]?.bg.split(' ')[1].replace('bg-', '#') || '#3b82f6'} />
+                    <Cell key={`cell-${index}`} fill={getColorForStatus(entry.name)} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -133,7 +167,7 @@ const Dashboard: React.FC<DashboardProps> = ({ leads }) => {
           <div className="flex flex-wrap justify-center gap-4 mt-2">
             {stats.statusData.map((item, i) => (
               <div key={i} className="flex items-center gap-2 text-xs font-medium text-slate-600">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: STATUS_CONFIG[item.name as keyof typeof STATUS_CONFIG]?.bg.split(' ')[1].replace('bg-', '#') }}></div>
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getColorForStatus(item.name) }}></div>
                 {item.name}
               </div>
             ))}

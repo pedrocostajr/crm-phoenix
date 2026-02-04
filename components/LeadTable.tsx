@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Lead, LeadStatus } from '../types';
 import {
@@ -17,8 +16,8 @@ import {
   Download,
   Upload
 } from 'lucide-react';
-import { STATUS_CONFIG } from '../constants';
 import { storageService } from '../services/storage';
+import { usePipeline } from '../hooks/usePipeline';
 
 interface LeadTableProps {
   leads: Lead[];
@@ -29,6 +28,7 @@ interface LeadTableProps {
 }
 
 const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, onInteraction }) => {
+  const { stages } = usePipeline();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'Todos'>('Todos');
   const [currentPage, setCurrentPage] = useState(1);
@@ -54,6 +54,20 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
+  const getStatusStyle = (status: string) => {
+    const stage = stages.find(s => s.name === status);
+    if (!stage) return { bg: 'bg-slate-100 border-slate-200', color: 'text-slate-700' };
+
+    // stage.color is like "bg-blue-500"
+    // We want to convert to "bg-blue-100" and "text-blue-700"
+    const baseColor = stage.color.replace('bg-', '').replace('-500', '');
+
+    // Handle special cases or default
+    return {
+      bg: `bg-${baseColor}-100 border-${baseColor}-200`,
+      color: `text-${baseColor}-700`
+    };
+  };
 
   const handleExport = () => {
     storageService.exportLeadsToCSV();
@@ -64,11 +78,6 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
       const success = await storageService.importLeadsFromCSV(e.target.files[0]);
       if (success) {
         alert('Leads importados com sucesso!');
-        // Force refresh or callback might be needed if state doesn't update automatically
-        // In this simple app, we might need to trigger a reload or parent update. 
-        // Ideally LeadTable should receive leads as props (which it does), so the parent needs to refresh.
-        // But for now let's just show alert. The parent container likely fetches on mount or update.
-        // To fix this properly, we should probably call a prop like onRefresh or just window.location.reload() for a simple v1 fix
         window.location.reload();
       }
     }
@@ -96,8 +105,8 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
               className="pl-4 pr-10 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 appearance-none cursor-pointer"
             >
               <option value="Todos">Todos os Status</option>
-              {Object.keys(STATUS_CONFIG).map(status => (
-                <option key={status} value={status}>{status}</option>
+              {stages.map(stage => (
+                <option key={stage.id} value={stage.name}>{stage.name}</option>
               ))}
             </select>
             <Filter className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
@@ -150,67 +159,70 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginatedLeads.map((lead) => (
-                <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-slate-900">{lead.name}</span>
-                      <span className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                        <Building2 size={12} /> {lead.company}
+              {paginatedLeads.map((lead) => {
+                const statusStyle = getStatusStyle(lead.status);
+                return (
+                  <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-slate-900">{lead.name}</span>
+                        <span className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                          <Building2 size={12} /> {lead.company}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                          <Mail size={12} className="text-slate-400" /> {lead.email}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <Phone size={12} className="text-slate-400" /> {lead.phone}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusStyle.bg} ${statusStyle.color}`}>
+                        {lead.status}
                       </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5 text-sm text-slate-600">
-                        <Mail size={12} className="text-slate-400" /> {lead.email}
+                    </td>
+                    <td className="px-6 py-4 font-semibold text-slate-700">
+                      {formatCurrency(lead.estimatedValue)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">{lead.responsible}</span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => onInteraction(lead)}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Interações"
+                        >
+                          <MessageSquare size={18} />
+                        </button>
+                        <button
+                          onClick={() => onEdit(lead)}
+                          className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button
+                          onClick={() => onDelete(lead.id)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Excluir"
+                        >
+                          <Trash2 size={18} />
+                        </button>
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                        <Phone size={12} className="text-slate-400" /> {lead.phone}
+                      <div className="group-hover:hidden text-slate-300">
+                        <MoreHorizontal size={20} />
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_CONFIG[lead.status].bg} ${STATUS_CONFIG[lead.status].color}`}>
-                      {lead.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 font-semibold text-slate-700">
-                    {formatCurrency(lead.estimatedValue)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">{lead.responsible}</span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => onInteraction(lead)}
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Interações"
-                      >
-                        <MessageSquare size={18} />
-                      </button>
-                      <button
-                        onClick={() => onEdit(lead)}
-                        className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                        title="Editar"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => onDelete(lead.id)}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Excluir"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                    <div className="group-hover:hidden text-slate-300">
-                      <MoreHorizontal size={20} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                )
+              })}
               {paginatedLeads.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">
