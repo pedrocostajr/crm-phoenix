@@ -49,8 +49,9 @@ const PipelineEditor: React.FC<PipelineEditorProps> = ({ onClose }) => {
             try {
                 await addStage(newStageName.trim(), 'bg-slate-500');
                 setNewStageName('');
-            } catch (error) {
-                alert('Erro ao criar etapa. Verifique se o script de banco de dados foi executado.');
+            } catch (error: any) {
+                console.error(error);
+                alert(`Erro ao criar etapa: ${error.message || 'Erro desconhecido'}. \n\nVerifique o console para mais detalhes.`);
             }
         }
     };
