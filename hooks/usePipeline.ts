@@ -62,6 +62,7 @@ export const usePipeline = () => {
             }
         } catch (error) {
             console.error('Error adding pipeline stage:', error);
+            throw error; // Propagate error to UI
         }
     };
 

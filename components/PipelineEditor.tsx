@@ -44,10 +44,14 @@ const PipelineEditor: React.FC<PipelineEditorProps> = ({ onClose }) => {
     const [editName, setEditName] = useState('');
     const [editColor, setEditColor] = useState('');
 
-    const handleAddStage = () => {
+    const handleAddStage = async () => {
         if (newStageName.trim()) {
-            addStage(newStageName.trim(), 'bg-slate-500');
-            setNewStageName('');
+            try {
+                await addStage(newStageName.trim(), 'bg-slate-500');
+                setNewStageName('');
+            } catch (error) {
+                alert('Erro ao criar etapa. Verifique se o script de banco de dados foi executado.');
+            }
         }
     };
 
