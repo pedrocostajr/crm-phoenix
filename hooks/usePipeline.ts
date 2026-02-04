@@ -29,6 +29,14 @@ export const usePipeline = () => {
             }
         } catch (error) {
             console.error('Error fetching pipeline stages:', error);
+            // Fallback to default stages on error (e.g. table doesn't exist yet)
+            setStages([
+                { id: '1', name: 'Novo Lead', position: 0, color: 'bg-blue-500' },
+                { id: '2', name: 'Em Contato', position: 1, color: 'bg-yellow-500' },
+                { id: '3', name: 'Proposta Enviada', position: 2, color: 'bg-purple-500' },
+                { id: '4', name: 'Negociação', position: 3, color: 'bg-orange-500' },
+                { id: '5', name: 'Ganho', position: 4, color: 'bg-green-500' }
+            ]);
         } finally {
             setLoading(false);
         }
