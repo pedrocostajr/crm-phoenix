@@ -10,6 +10,7 @@ import LeadKanban from './components/LeadKanban';
 import UserManagement from './components/UserManagement';
 import LeadModal from './components/LeadModal';
 import InteractionTimeline from './components/InteractionTimeline';
+import WebhookSettings from './components/WebhookSettings';
 import { Lock, Flame, Mail, Key } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -50,6 +51,7 @@ const App: React.FC = () => {
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [isInteractionOpen, setIsInteractionOpen] = useState(false);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
+  const [isWebhookSettingsOpen, setIsWebhookSettingsOpen] = useState(false);
 
   // Initialize Data
   const fetchData = async () => {
@@ -271,6 +273,7 @@ const App: React.FC = () => {
       setActiveTab={setActiveTab}
       onLogout={handleLogout}
       userName={auth.user?.name || 'User'}
+      onOpenWebhookSettings={() => setIsWebhookSettingsOpen(true)}
     >
       {activeTab === 'dashboard' && <Dashboard leads={leads} />}
 
@@ -333,6 +336,12 @@ const App: React.FC = () => {
             setActiveLead(null);
           }}
           onAddInteraction={handleAddInteraction}
+        />
+      )}
+
+      {isWebhookSettingsOpen && (
+        <WebhookSettings
+          onClose={() => setIsWebhookSettingsOpen(false)}
         />
       )}
     </Layout>

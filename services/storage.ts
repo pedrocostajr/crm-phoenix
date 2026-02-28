@@ -338,5 +338,25 @@ export const storageService = {
     const q = query(collection(db, 'tasks'), where('column_id', 'in', columnIds), orderBy('position', 'asc'));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
+  // Webhook Settings
+  getWebhookSettings: async () => {
+    try {
+      const docSnap = await getDoc(doc(db, 'settings', 'webhook'));
+      return docSnap.exists() ? docSnap.data() : { mappings: {}, lastPayload: null };
+    } catch (error) {
+      console.error('Error fetching webhook settings:', error);
+      return { mappings: {}, lastPayload: null };
+    }
+  },
+
+  saveWebhookSettings: async (settings: any) => {
+    try {
+      await setDoc(doc(db, 'settings', 'webhook'), settings, { merge: true });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   }
 };

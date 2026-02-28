@@ -18,6 +18,7 @@ interface LayoutProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onLogout: () => void;
+  onOpenWebhookSettings?: () => void;
   userName: string;
 }
 
@@ -32,7 +33,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const success = await storageService.importData(file);
+      const success = await storageService.importLeadsFromCSV(file);
       if (success) {
         window.location.reload();
       } else {
@@ -58,8 +59,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${activeTab === item.id
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                 }`}
             >
               <item.icon size={20} />
@@ -71,7 +72,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
         <div className="p-4 border-t border-slate-800 space-y-4">
           <div className="flex gap-2">
             <button
-              onClick={() => storageService.exportData()}
+              onClick={() => storageService.exportLeadsToCSV()}
               className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs transition-colors"
               title="Exportar Dados"
             >
@@ -82,6 +83,14 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
               <input type="file" className="hidden" accept=".json" onChange={handleImport} />
             </label>
           </div>
+
+          <button
+            onClick={onOpenWebhookSettings}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white rounded-xl transition-all duration-200"
+          >
+            <Settings size={20} />
+            <span className="font-medium">Webhooks</span>
+          </button>
 
           <div className="flex items-center gap-3 px-2">
             <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold text-white">

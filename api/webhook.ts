@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 
 const firebaseConfig = {
     apiKey: process.env.VITE_FIREBASE_API_KEY,
@@ -21,95 +21,64 @@ export default async function handler(req: any, res: any) {
         'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
     );
 
-    console.log('--- Webhook Start ---');
-    console.log('Method:', req.method);
-    console.log('Headers:', JSON.stringify(req.headers));
-
     if (req.method === 'OPTIONS') {
         res.status(200).end();
         return;
     }
 
     if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Apenas método POST é permitido' });
-    }
-
-    let body;
-    try {
-        body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-        console.log('Parsed Body:', JSON.stringify(body, null, 2));
-    } catch (e) {
-        console.error('Erro ao processar JSON:', e);
-        return res.status(400).json({ error: 'JSON inválido' });
-    }
-
-    console.log('Webhook reccebido:', JSON.stringify(body, null, 2));
-
-    const data = body.data || {};
-
-    // Prioritizar campos dentro de 'data', se não existirem, olhar na raiz
-    const name = data.name || body.name;
-    const email = data.email || body.email;
-    const phone = data.phone || body.phone;
-    const company = data.company || body.company || '';
-    const estimated_value = data.estimated_value || body.estimated_value || 0;
-    const origin = data.origin || body.origin || 'Lead Form';
-
-    console.log('Extracted Data:', { name, email, phone, company, estimated_value, origin });
-
-    // Coletar campos extras (como block-IDs) para observações
-    let observations = body.observations || '';
-    if (body.data) {
-        const extras = Object.entries(body.data)
-            .filter(([key]) => !['name', 'email', 'phone', 'company', 'estimated_value', 'origin'].includes(key))
-            .map(([key, value]) => `${key}: ${value}`)
-            .join('\n');
-
-        if (extras) {
-            observations = observations ? `${observations}\n\nCampos:\n${extras}` : `Campos:\n${extras}`;
-        }
-    }
-
-    if (!name || !email) {
-        console.error('Missing required fields: name/email');
-        return res.status(400).json({ error: 'Nome e email são obrigatórios', received: { name, email } });
+        return res.status(405).json({ error: 'POST only' });
     }
 
     try {
-        console.log('Initializing Firebase with Project ID:', firebaseConfig.projectId);
         const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
         const db = getFirestore(app);
-        console.log('Firestore initialized');
 
-        const leadId = `lead_webhook_${Date.now()}`;
-        const leadData = {
-            name,
-            company,
-            email,
-            phone,
+        let body = req.body;
+        if (typeof body === 'string') {
+            try { body = JSON.parse(body); } catch (e) { }
+        }
+
+        // Capture the payload for the UI to see
+        await setDoc(doc(db, 'settings', 'webhook'), {
+            lastPayload: body,
+            lastReceived: new Date().toISOString()
+        }, { merge: true });
+
+        // Fetch mappings
+        const settingsSnap = await getDoc(doc(db, 'settings', 'webhook'));
+        const settings = settingsSnap.exists() ? settingsSnap.data() : { mappings: {} };
+        const mappings = settings.mappings || {};
+
+        // Helper to get value from nested path like "data.name"
+        const getValue = (obj: any, path: string) => {
+            return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+        };
+
+        // Apply Mappings or use Defaults
+        const leadData: any = {
+            name: getValue(body, mappings.name) || body.name || body.data?.name || 'Lead s/ Nome',
+            email: getValue(body, mappings.email) || body.email || body.data?.email || '',
+            phone: getValue(body, mappings.phone) || body.phone || body.data?.phone || '',
+            company: getValue(body, mappings.company) || body.company || body.data?.company || '',
             status: 'Novo Lead',
-            estimated_value: Number(estimated_value) || 0,
-            origin,
-            responsible: 'Sistema Webhook',
-            observations,
+            origin: getValue(body, mappings.origin) || body.origin || body.data?.origin || 'Webhook',
+            estimated_value: Number(getValue(body, mappings.estimated_value) || body.estimated_value || body.data?.estimated_value || 0),
+            responsible: 'Sistema',
+            observations: '',
             created_at: new Date().toISOString(),
             interactions: []
         };
 
-        console.log('Attempting to save lead to Firestore path: leads/', leadId);
-        await setDoc(doc(db, 'leads', leadId), leadData);
-        console.log('Lead saved successfully!');
+        // Include all unmapped data in observations for safety
+        leadData.observations = `Payload Completo:\n${JSON.stringify(body, null, 2)}`;
 
-        return res.status(200).json({
-            success: true,
-            id: leadId
-        });
+        const leadId = `lead_webhook_${Date.now()}`;
+        await setDoc(doc(db, 'leads', leadId), leadData);
+
+        return res.status(200).json({ success: true, id: leadId });
     } catch (error: any) {
-        console.error('CRITICAL Webhook error:', error);
-        return res.status(500).json({
-            error: 'Erro interno',
-            message: error.message,
-            stack: error.stack
-        });
+        console.error('Webhook Error:', error);
+        return res.status(500).json({ error: error.message });
     }
 }
