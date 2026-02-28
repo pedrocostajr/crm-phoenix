@@ -17,7 +17,11 @@ interface WebhookSettingsProps {
 const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [settings, setSettings] = useState<any>({ mappings: {}, lastPayload: null });
+    const [settings, setSettings] = useState<any>({
+        mappings: {},
+        lastPayload: null,
+        lastReceived: null
+    });
     const [availableFields, setAvailableFields] = useState<string[]>([]);
 
     const crmFields = [
@@ -33,13 +37,24 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
         try {
             setLoading(true);
             const data = await storageService.getWebhookSettings();
-            setSettings(data || { mappings: {}, lastPayload: null });
 
-            if (data && data.lastPayload) {
-                setAvailableFields(extractPaths(data.lastPayload));
+            // Ensure we always have a valid structure even if backend returns empty or different
+            const safeData = {
+                mappings: data?.mappings || {},
+                lastPayload: data?.lastPayload || null,
+                lastReceived: data?.lastReceived || null,
+                ...data
+            };
+
+            setSettings(safeData);
+
+            if (safeData.lastPayload) {
+                setAvailableFields(extractPaths(safeData.lastPayload));
             }
         } catch (error) {
             console.error('Error in WebhookSettings fetchData:', error);
+            // Fallback to defaults on error
+            setSettings({ mappings: {}, lastPayload: null, lastReceived: null });
         } finally {
             setLoading(false);
         }
@@ -72,13 +87,13 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
     };
 
     const handleMappingChange = (crmField: string, externalPath: string) => {
-        setSettings({
-            ...settings,
+        setSettings((prev: any) => ({
+            ...prev,
             mappings: {
-                ...settings.mappings,
+                ...(prev?.mappings || {}),
                 [crmField]: externalPath
             }
-        });
+        }));
     };
 
     const handleSave = async () => {
@@ -206,12 +221,12 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
                                         </div>
 
                                         <select
-                                            value={settings.mappings[field.id] || ''}
+                                            value={(settings?.mappings && settings.mappings[field.id]) || ''}
                                             onChange={(e) => handleMappingChange(field.id, e.target.value)}
                                             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
                                         >
                                             <option value="">-- Selecione o campo do seu formulário --</option>
-                                            {availableFields.map(path => (
+                                            {(availableFields || []).map(path => (
                                                 <option key={path} value={path}>{path}</option>
                                             ))}
                                         </select>
