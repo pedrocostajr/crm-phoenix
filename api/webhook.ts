@@ -30,7 +30,16 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Apenas método POST é permitido' });
     }
 
-    const body = req.body;
+    let body;
+    try {
+        body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    } catch (e) {
+        console.error('Erro ao processar JSON:', e);
+        return res.status(400).json({ error: 'JSON inválido' });
+    }
+
+    console.log('Webhook reccebido:', JSON.stringify(body, null, 2));
+
     const data = body.data || {};
 
     // Prioritizar campos dentro de 'data', se não existirem, olhar na raiz
@@ -55,10 +64,12 @@ export default async function handler(req: any, res: any) {
     }
 
     if (!name || !email) {
-        return res.status(400).json({ error: 'Nome e email são obrigatórios' });
+        console.warn('Dados incompletos:', { name, email });
+        return res.status(400).json({ error: 'Nome e email são obrigatórios', received: { name, email } });
     }
 
     try {
+        console.log('Iniciando Firebase...');
         const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
         const db = getFirestore(app);
 
