@@ -52,15 +52,25 @@ export default async function handler(req: any, res: any) {
 
         // Helper to get value from nested path like "data.name"
         const getValue = (obj: any, path: string) => {
-            return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+            if (!path || !obj) return undefined;
+            try {
+                return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+            } catch (e) {
+                console.error(`Error getting value for path ${path}:`, e);
+                return undefined;
+            }
         };
+
+        console.log('--- Webhook Processing ---');
+        console.log('Body:', JSON.stringify(body, null, 2));
+        console.log('Mappings:', JSON.stringify(mappings, null, 2));
 
         // Apply Mappings or use Defaults
         const leadData: any = {
-            name: getValue(body, mappings.name) || body.name || body.data?.name || 'Lead s/ Nome',
-            email: getValue(body, mappings.email) || body.email || body.data?.email || '',
-            phone: getValue(body, mappings.phone) || body.phone || body.data?.phone || '',
-            company: getValue(body, mappings.company) || body.company || body.data?.company || '',
+            name: getValue(body, mappings.name) || body.name || body.data?.name || body.nome || 'Lead s/ Nome',
+            email: getValue(body, mappings.email) || body.email || body.data?.email || body.email || '',
+            phone: getValue(body, mappings.phone) || body.phone || body.data?.phone || body.telefone || '',
+            company: getValue(body, mappings.company) || body.company || body.data?.company || body.empresa || '',
             status: 'Novo Lead',
             origin: getValue(body, mappings.origin) || body.origin || body.data?.origin || 'Webhook',
             estimated_value: Number(getValue(body, mappings.estimated_value) || body.estimated_value || body.data?.estimated_value || 0),
@@ -70,15 +80,27 @@ export default async function handler(req: any, res: any) {
             interactions: []
         };
 
+        console.log('Mapped Lead Data:', JSON.stringify(leadData, null, 2));
+
         // Include all unmapped data in observations for safety
         leadData.observations = `Payload Completo:\n${JSON.stringify(body, null, 2)}`;
 
         const leadId = `lead_webhook_${Date.now()}`;
         await setDoc(doc(db, 'leads', leadId), leadData);
 
+        console.log('Lead saved successfully:', leadId);
+        console.log('--- End Webhook Processing ---');
+
         return res.status(200).json({ success: true, id: leadId });
     } catch (error: any) {
-        console.error('Webhook Error:', error);
-        return res.status(500).json({ error: error.message });
+        console.error('Webhook Error Detail:', error);
+        return res.status(500).json({
+            error: error.message,
+            stack: error.stack,
+            config: {
+                projectId: firebaseConfig.projectId,
+                hasApiKey: !!firebaseConfig.apiKey
+            }
+        });
     }
 }
