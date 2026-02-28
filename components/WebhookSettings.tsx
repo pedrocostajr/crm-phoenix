@@ -30,14 +30,19 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
     ];
 
     const fetchData = async () => {
-        setLoading(true);
-        const data = await storageService.getWebhookSettings();
-        setSettings(data);
+        try {
+            setLoading(true);
+            const data = await storageService.getWebhookSettings();
+            setSettings(data || { mappings: {}, lastPayload: null });
 
-        if (data.lastPayload) {
-            setAvailableFields(extractPaths(data.lastPayload));
+            if (data && data.lastPayload) {
+                setAvailableFields(extractPaths(data.lastPayload));
+            }
+        } catch (error) {
+            console.error('Error in WebhookSettings fetchData:', error);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     useEffect(() => {
@@ -46,14 +51,22 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
 
     // Helper to extract nested paths from an object for the mapping dropdown
     const extractPaths = (obj: any, prefix = ''): string[] => {
+        if (!obj || typeof obj !== 'object') return [];
+
         let paths: string[] = [];
-        for (const key in obj) {
-            const path = prefix ? `${prefix}.${key}` : key;
-            if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-                paths = [...paths, ...extractPaths(obj[key], path)];
-            } else {
-                paths.push(path);
+        try {
+            for (const key in obj) {
+                if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                    const path = prefix ? `${prefix}.${key}` : key;
+                    if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+                        paths = [...paths, ...extractPaths(obj[key], path)];
+                    } else {
+                        paths.push(path);
+                    }
+                }
             }
+        } catch (e) {
+            console.error('Error extracting paths:', e);
         }
         return paths;
     };
@@ -156,7 +169,9 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
                                 <div className="bg-slate-900 rounded-2xl p-4 overflow-hidden border border-slate-800">
                                     <div className="flex justify-between items-center mb-3">
                                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">JSON Recebido</span>
-                                        <span className="text-[10px] text-slate-500">{new Date(settings.lastReceived).toLocaleString()}</span>
+                                        <span className="text-[10px] text-slate-500">
+                                            {settings.lastReceived ? new Date(settings.lastReceived).toLocaleString() : 'Sem data'}
+                                        </span>
                                     </div>
                                     <pre className="text-blue-400 font-mono text-xs overflow-x-auto max-h-[300px] scrollbar-thin scrollbar-thumb-slate-700">
                                         {JSON.stringify(settings.lastPayload, null, 2)}
