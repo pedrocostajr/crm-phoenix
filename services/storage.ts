@@ -10,7 +10,10 @@ import {
   deleteDoc,
   query,
   orderBy,
-  updateDoc
+  updateDoc,
+  where,
+  addDoc,
+  getDoc
 } from 'firebase/firestore';
 
 export const storageService = {
@@ -274,5 +277,66 @@ export const storageService = {
       alert('Erro ao processar arquivo: ' + (e.message || e));
       return false;
     }
+  },
+
+  // Pipeline Stages
+  getPipelineStages: async () => {
+    try {
+      const stagesRef = collection(db, 'pipeline_stages');
+      const q = query(stagesRef, orderBy('position', 'asc'));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching pipeline stages:', error);
+      return [];
+    }
+  },
+
+  savePipelineStage: async (stage: any) => {
+    try {
+      const { id, ...data } = stage;
+      if (id) {
+        await setDoc(doc(db, 'pipeline_stages', id), data);
+      } else {
+        await addDoc(collection(db, 'pipeline_stages'), data);
+      }
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  deletePipelineStage: async (id: string) => {
+    await deleteDoc(doc(db, 'pipeline_stages', id));
+  },
+
+  // Projects, Boards, Tasks (Simplified for Migration)
+  getProjects: async () => {
+    const querySnapshot = await getDocs(collection(db, 'projects'));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
+  getProject: async (id: string) => {
+    const docSnap = await getDoc(doc(db, 'projects', id));
+    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+  },
+
+  getBoards: async (projectId: string) => {
+    const q = query(collection(db, 'boards'), where('project_id', '==', projectId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
+  getBoardColumns: async (boardId: string) => {
+    const q = query(collection(db, 'board_columns'), where('board_id', '==', boardId), orderBy('position', 'asc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
+  getTasks: async (columnIds: string[]) => {
+    if (columnIds.length === 0) return [];
+    const q = query(collection(db, 'tasks'), where('column_id', 'in', columnIds), orderBy('position', 'asc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }
 };

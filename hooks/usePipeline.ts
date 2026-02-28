@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { storageService } from '../services/storage';
 import { PipelineStage } from '../types';
 
 export const usePipeline = () => {
@@ -8,15 +8,10 @@ export const usePipeline = () => {
 
     const fetchStages = async () => {
         try {
-            const { data, error } = await supabase
-                .from('pipeline_stages')
-                .select('*')
-                .order('position', { ascending: true });
-
-            if (error) throw error;
+            const data = await storageService.getPipelineStages();
 
             if (data && data.length > 0) {
-                setStages(data);
+                setStages(data as PipelineStage[]);
             } else {
                 // Fallback to default stages if DB is empty
                 setStages([
@@ -49,17 +44,12 @@ export const usePipeline = () => {
     const addStage = async (name: string, color: string) => {
         try {
             const position = stages.length;
-            const { data, error } = await supabase
-                .from('pipeline_stages')
-                .insert([{ name, position, color }])
-                .select()
-                .single();
+            const newStage = { name, position, color };
+            const result = await storageService.savePipelineStage(newStage);
 
-            if (error) throw error;
+            if (!result.success) throw new Error(result.error);
 
-            if (data) {
-                setStages([...stages, data]);
-            }
+            fetchStages();
         } catch (error) {
             console.error('Error adding pipeline stage:', error);
             throw error; // Propagate error to UI
@@ -71,15 +61,12 @@ export const usePipeline = () => {
             // Optimistic update
             setStages(stages.map(stage => stage.id === id ? { ...stage, ...updates } : stage));
 
-            const { error } = await supabase
-                .from('pipeline_stages')
-                .update(updates)
-                .eq('id', id);
+            const result = await storageService.savePipelineStage({ id, ...updates });
 
-            if (error) {
+            if (!result.success) {
                 // Revert on error
                 fetchStages();
-                throw error;
+                throw new Error(result.error);
             }
         } catch (error) {
             console.error('Error updating pipeline stage:', error);
@@ -91,17 +78,10 @@ export const usePipeline = () => {
             // Optimistic update
             setStages(stages.filter(stage => stage.id !== id));
 
-            const { error } = await supabase
-                .from('pipeline_stages')
-                .delete()
-                .eq('id', id);
-
-            if (error) {
-                fetchStages();
-                throw error;
-            }
+            await storageService.deletePipelineStage(id);
         } catch (error) {
             console.error('Error deleting pipeline stage:', error);
+            fetchStages();
         }
     };
 
@@ -117,10 +97,7 @@ export const usePipeline = () => {
             }));
 
             for (const update of updates) {
-                await supabase
-                    .from('pipeline_stages')
-                    .update({ position: update.position })
-                    .eq('id', update.id);
+                await storageService.savePipelineStage(update);
             }
         } catch (error) {
             console.error('Error reordering stages:', error);
