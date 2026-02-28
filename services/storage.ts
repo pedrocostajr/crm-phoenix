@@ -1,134 +1,135 @@
 
 import { Lead, User, LeadStatus } from '../types';
 import * as XLSX from 'xlsx';
-import { supabase } from '../lib/supabase';
+import { db } from '../lib/firebase';
+import {
+  collection,
+  getDocs,
+  setDoc,
+  doc,
+  deleteDoc,
+  query,
+  orderBy,
+  updateDoc
+} from 'firebase/firestore';
 
 export const storageService = {
   // Leads
   getLeads: async (): Promise<Lead[]> => {
-    const { data, error } = await supabase
-      .from('leads')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const leadsRef = collection(db, 'leads');
+      const q = query(leadsRef, orderBy('created_at', 'desc'));
+      const querySnapshot = await getDocs(q);
 
-    if (error) {
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name,
+          company: data.company,
+          email: data.email,
+          phone: data.phone,
+          status: data.status,
+          estimatedValue: Number(data.estimated_value),
+          origin: data.origin,
+          responsible: data.responsible,
+          observations: data.observations,
+          createdAt: data.created_at,
+          interactions: data.interactions || []
+        } as Lead;
+      });
+    } catch (error) {
       console.error('Error fetching leads:', error);
       return [];
     }
-
-    return (data || []).map((dbLead: any) => ({
-      id: dbLead.id,
-      name: dbLead.name,
-      company: dbLead.company,
-      email: dbLead.email,
-      phone: dbLead.phone,
-      status: dbLead.status,
-      estimatedValue: Number(dbLead.estimated_value),
-      origin: dbLead.origin,
-      responsible: dbLead.responsible,
-      observations: dbLead.observations,
-      createdAt: dbLead.created_at,
-      interactions: dbLead.interactions || []
-    }));
   },
 
   saveLead: async (lead: Lead): Promise<{ success: boolean; error?: string }> => {
-    // Convert to snake_case for DB
-    const dbLead = {
-      id: lead.id,
-      name: lead.name,
-      company: lead.company,
-      email: lead.email,
-      phone: lead.phone,
-      status: lead.status,
-      estimated_value: lead.estimatedValue,
-      origin: lead.origin,
-      responsible: lead.responsible,
-      observations: lead.observations,
-      created_at: lead.createdAt || new Date().toISOString(),
-      interactions: lead.interactions
-    };
+    try {
+      const dbLead = {
+        name: lead.name,
+        company: lead.company,
+        email: lead.email,
+        phone: lead.phone,
+        status: lead.status,
+        estimated_value: lead.estimatedValue,
+        origin: lead.origin,
+        responsible: lead.responsible,
+        observations: lead.observations,
+        created_at: lead.createdAt || new Date().toISOString(),
+        interactions: lead.interactions
+      };
 
-    const { error } = await supabase
-      .from('leads')
-      .upsert(dbLead);
-
-    if (error) {
+      await setDoc(doc(db, 'leads', lead.id), dbLead);
+      return { success: true };
+    } catch (error: any) {
       console.error('Error saving lead:', error);
       return { success: false, error: error.message };
     }
-    return { success: true };
   },
 
   deleteLead: async (id: string) => {
-    const { error } = await supabase
-      .from('leads')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
+    try {
+      await deleteDoc(doc(db, 'leads', id));
+    } catch (error) {
       console.error('Error deleting lead:', error);
     }
   },
 
   // Users
   getUsers: async (): Promise<User[]> => {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*');
+    try {
+      const usersRef = collection(db, 'users');
+      const querySnapshot = await getDocs(usersRef);
 
-    if (error) {
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          phone: data.phone,
+          status: data.status,
+          isAdmin: data.is_admin,
+          password: data.password
+        } as User;
+      });
+    } catch (error) {
       console.error('Error fetching users:', error);
       return [];
     }
-
-    return (data || []).map((u: any) => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: u.role,
-      phone: u.phone,
-      status: u.status,
-      isAdmin: u.is_admin,
-      password: u.password
-    }));
   },
 
   saveUser: async (user: User): Promise<{ success: boolean; error?: string }> => {
-    const dbUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      status: user.status,
-      is_admin: user.isAdmin,
-      password: user.password
-    };
+    try {
+      const dbUser = {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        status: user.status,
+        is_admin: user.isAdmin,
+        password: user.password
+      };
 
-    const { error } = await supabase
-      .from('users')
-      .upsert(dbUser);
-
-    if (error) {
+      await setDoc(doc(db, 'users', user.id), dbUser);
+      return { success: true };
+    } catch (error: any) {
       console.error('Error saving user:', error);
       return { success: false, error: error.message };
     }
-    return { success: true };
   },
 
   deleteUser: async (id: string) => {
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
+    try {
+      await deleteDoc(doc(db, 'users', id));
+    } catch (error) {
       console.error('Error deleting user:', error);
     }
   },
 
-  // Export/Import (Excel & CSV)
+  // Export/Import (Excel & CSV) remains similar but using storageService.getLeads
   exportLeadsToCSV: async () => {
     try {
       const leads = await storageService.getLeads();
@@ -187,19 +188,14 @@ export const storageService = {
 
       const newLeads: any[] = [];
 
-      // Helpers within function scope for simplicity
       const parseDate = (dateStr: any): string => {
         if (!dateStr) return new Date().toISOString();
         if (dateStr instanceof Date) return dateStr.toISOString();
-
-        // Handle Excel numeric date
         if (typeof dateStr === 'number') {
           const date = new Date(Math.round((dateStr - 25569) * 86400 * 1000));
           return date.toISOString();
         }
-
         const str = String(dateStr).trim();
-        // Handle DD/MM/YYYY
         if (str.match(/^\d{2}\/\d{2}\/\d{4}/)) {
           const [day, month, year] = str.split('/');
           return new Date(`${year}-${month}-${day}`).toISOString();
@@ -210,7 +206,6 @@ export const storageService = {
       const parseCurrency = (val: any): number => {
         if (!val) return 0;
         if (typeof val === 'number') return val;
-        // Brazil format: 1.000,00 -> remove dots, replace comma with dot
         const clean = String(val).replace(/\./g, '').replace(',', '.');
         return parseFloat(clean) || 0;
       };
@@ -218,24 +213,16 @@ export const storageService = {
       jsonData.forEach((row: any) => {
         const name = row['Nome'] || row['Name'] || row['nome'];
         const email = row['Email'] || row['e-mail'] || row['email'];
-
         if (!name) return;
 
-        // Normalização de Status
         let rawStatus = String(row['Status'] || '').toLowerCase().trim();
         let status: LeadStatus = 'Novo Lead';
-
         const statusMap: Record<string, LeadStatus> = {
-          'novo_lead': 'Novo Lead',
-          'novo lead': 'Novo Lead',
-          'em_contato': 'Em Contato',
-          'em contato': 'Em Contato',
-          'proposta_enviada': 'Proposta Enviada',
-          'proposta enviada': 'Proposta Enviada',
-          'negociacao': 'Negociação',
-          'negociação': 'Negociação',
-          'ganho': 'Ganho',
-          'perdido': 'Perdido'
+          'novo_lead': 'Novo Lead', 'novo lead': 'Novo Lead',
+          'em_contato': 'Em Contato', 'em contato': 'Em Contato',
+          'proposta_enviada': 'Proposta Enviada', 'proposta enviada': 'Proposta Enviada',
+          'negociacao': 'Negociação', 'negociação': 'Negociação',
+          'ganho': 'Ganho', 'perdido': 'Perdido'
         };
 
         if (statusMap[rawStatus]) {
@@ -273,20 +260,17 @@ export const storageService = {
         }));
 
         const failures = results.filter(ok => !ok).length;
-
         if (failures > 0) {
           if (failures === newLeads.length) {
-            throw new Error(`O Banco de Dados recusou todos os leads. Motivo: ${lastError}`);
+            throw new Error(`Erro ao salvar leads: ${lastError}`);
           }
-          alert(`Atenção: ${failures} leads falharam, mas ${newLeads.length - failures} foram salvos.`);
+          alert(`Atenção: ${failures} leads falharam.`);
         }
         return true;
       }
-      alert('Nenhum lead encontrado na planilha. Verifique se as colunas estão corretas (Nome, Email, Telefone, etc).');
       return false;
-
     } catch (e: any) {
-      console.error('Failed to import Excel/CSV', e);
+      console.error('Failed to import', e);
       alert('Erro ao processar arquivo: ' + (e.message || e));
       return false;
     }

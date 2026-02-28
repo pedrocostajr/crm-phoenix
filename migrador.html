@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migrador Phoenix CRM: Supabase -> Firebase</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"
+      }
+    }
+    </script>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            background: #f4f7f6;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+        }
+
+        h1 {
+            color: #1a73e8;
+        }
+
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        button:disabled {
+            background: #ccc;
+        }
+
+        #log {
+            background: #222;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-top: 20px;
+        }
+
+        .status {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🚀 Migrador Supabase para Firebase</h1>
+    <p>Este utilitário vai transferir seus dados de Leads e Usuários automaticamente.</p>
+
+    <div class="card">
+        <div class="status" id="status">Status: Pronto para começar</div>
+        <button id="startBtn">Iniciar Migração</button>
+    </div>
+
+    <div id="log">Aguardando início...</div>
+
+    <script type="module">
+        import { initializeApp } from "firebase/app";
+        import { getFirestore, doc, setDoc, collection, getDocs } from "firebase/firestore";
+
+        // Configurações - Inseridas pelo assistente
+        const supabaseUrl = "https://nsvtkonbysujtganaawv.supabase.co";
+        const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zdnRrb25ieXN1anRnYW5hYXd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MzU4MTQsImV4cCI6MjA4NTIxMTgxNH0.GSixOb5rn_cELUQKLItCaqyz7f2oEoR0ev-hj5cSinc";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA_lF5yYnq4JeFjBMA-POB8Q45u1bIoSlw",
+            authDomain: "phoenix-crm-315cb.firebaseapp.com",
+            projectId: "phoenix-crm-315cb",
+            storageBucket: "phoenix-crm-315cb.firebasestorage.app",
+            messagingSenderId: "1062954272078",
+            appId: "1:1062954272078:web:274225dd46d3a40172ca1f",
+            measurementId: "G-HKS9023TPM"
+        };
+
+        const logElement = document.getElementById('log');
+        const statusElement = document.getElementById('status');
+        const startBtn = document.getElementById('startBtn');
+
+        function log(msg, color = '#0f0') {
+            const time = new Date().toLocaleTimeString();
+            const span = document.createElement('span');
+            span.style.color = color;
+            span.innerText = `[${time}] ${msg}\n`;
+            logElement.appendChild(span);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        // Global error handler for uncaught promises
+        window.addEventListener('unhandledrejection', event => {
+            log(`❌ ERRO NÃO TRATADO: ${event.reason}`, 'red');
+        });
+
+        async function startMigration() {
+            startBtn.disabled = true;
+            logElement.innerHTML = "";
+            log("🚀 Iniciando migração...", '#fff');
+
+            try {
+                log("🔗 Conectando ao Supabase...");
+                const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+                log("🔗 Conectando ao Firebase Firestore...");
+                const app = initializeApp(firebaseConfig);
+                const db = getFirestore(app);
+
+                log("📝 DICA: Certifique-se de que o Firestore está criado e em 'Modo de Teste'.", '#aaa');
+
+                // 1. Migrar Usuários
+                log("👥 Lendo usuários do Supabase...");
+                const { data: users, error: userError } = await supabase.from('users').select('*');
+                if (userError) throw new Error(`Erro Supabase (Users): ${userError.message}`);
+                log(`✅ Encontrados ${users.length} usuários.`);
+
+                for (const user of users) {
+                    log(`⏳ Copiando usuário: ${user.email}...`, '#eab308');
+                    try {
+                        // Timeout promise to detect hangs
+                        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout ao salvar. Verifique se o Firestore Database foi criado.")), 10000));
+
+                        const saveOp = setDoc(doc(db, "users", user.id), {
+                            name: user.name ?? "",
+                            email: user.email ?? "",
+                            role: user.role ?? "user",
+                            phone: user.phone ?? "",
+                            status: user.status ?? "",
+                            is_admin: !!user.is_admin,
+                            password: user.password ?? ""
+                        });
+
+                        await Promise.race([saveOp, timeout]);
+                        log(`   ✅ Sincronizado: ${user.email}`, '#22c55e');
+                    } catch (e) {
+                        log(`   ❌ Erro neste usuário: ${e.message}`, 'red');
+                        throw e;
+                    }
+                }
+                log("🏁 Todos os usuários processados.");
+
+                // 2. Migrar Leads
+                log("📈 Lendo leads do Supabase...");
+                const { data: leads, error: leadError } = await supabase.from('leads').select('*');
+                if (leadError) throw new Error(`Erro Supabase (Leads): ${leadError.message}`);
+                log(`✅ Encontrados ${leads.length} leads.`);
+
+                for (const lead of leads) {
+                    log(`⏳ Copiando lead: ${lead.name}...`, '#eab308');
+                    try {
+                        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout no Firestore.")), 10000));
+
+                        const saveOp = setDoc(doc(db, "leads", lead.id), {
+                            name: lead.name ?? "",
+                            company: lead.company ?? "",
+                            email: lead.email ?? "",
+                            phone: lead.phone ?? "",
+                            status: lead.status ?? "Novo Lead",
+                            estimated_value: lead.estimated_value ?? 0,
+                            origin: lead.origin ?? "",
+                            responsible: lead.responsible ?? "",
+                            observations: lead.observations ?? "",
+                            created_at: lead.created_at ?? new Date().toISOString(),
+                            interactions: lead.interactions || []
+                        });
+
+                        await Promise.race([saveOp, timeout]);
+                        log(`   ✅ Sincronizado: ${lead.name}`, '#22c55e');
+                    } catch (e) {
+                        log(`   ❌ Erro neste lead: ${e.message}`, 'red');
+                        throw e;
+                    }
+                }
+                log("🏁 Todos os leads processados.");
+
+                log("🎉 MIGRAÇÃO CONCLUÍDA COM SUCESSO!", '#fff');
+                statusElement.innerText = "Status: Migração Concluída!";
+                statusElement.style.color = "green";
+
+            } catch (err) {
+                log(`❌ ERRO CRÍTICO: ${err.message}`, 'red');
+                console.error(err);
+                statusElement.innerText = "Status: Erro na migração";
+                statusElement.style.color = "red";
+                startBtn.disabled = false;
+            }
+        }
+
+        startBtn.addEventListener('click', startMigration);
+    </script>
+</body>
+
+</html>
