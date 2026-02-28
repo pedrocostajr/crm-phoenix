@@ -30,7 +30,29 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Apenas método POST é permitido' });
     }
 
-    const { name, email, phone, company, estimated_value, origin, observations } = req.body;
+    const body = req.body;
+    const data = body.data || {};
+
+    // Prioritizar campos dentro de 'data', se não existirem, olhar na raiz
+    const name = data.name || body.name;
+    const email = data.email || body.email;
+    const phone = data.phone || body.phone;
+    const company = data.company || body.company || '';
+    const estimated_value = data.estimated_value || body.estimated_value || 0;
+    const origin = data.origin || body.origin || 'Lead Form';
+
+    // Coletar campos extras (como block-IDs) para observações
+    let observations = body.observations || '';
+    if (body.data) {
+        const extras = Object.entries(body.data)
+            .filter(([key]) => !['name', 'email', 'phone', 'company', 'estimated_value', 'origin'].includes(key))
+            .map(([key, value]) => `${key}: ${value}`)
+            .join('\n');
+
+        if (extras) {
+            observations = observations ? `${observations}\n\nCampos do Formulário:\n${extras}` : `Campos do Formulário:\n${extras}`;
+        }
+    }
 
     if (!name || !email) {
         return res.status(400).json({ error: 'Nome e email são obrigatórios' });
