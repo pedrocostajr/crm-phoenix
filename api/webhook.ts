@@ -41,20 +41,32 @@ export default async function handler(req: any, res: any) {
         const db = getFirestore(app);
 
         let body = req.body;
+        if (body && typeof body === 'object' && Buffer.isBuffer(body)) {
+            body = body.toString();
+        }
         if (typeof body === 'string') {
             try { body = JSON.parse(body); } catch (e) { }
         }
 
+        console.log('--- Webhook Processing ---');
+        console.log('Body:', JSON.stringify(body, null, 2));
+
         // Capture the payload for the UI to see
-        await setDoc(doc(db, 'settings', 'webhook'), {
-            lastPayload: body,
-            lastReceived: new Date().toISOString()
-        }, { merge: true });
+        try {
+            await setDoc(doc(db, 'settings', 'webhook'), {
+                lastPayload: body,
+                lastReceived: new Date().toISOString()
+            }, { merge: true });
+            console.log('Payload captured in settings/webhook');
+        } catch (e) {
+            console.error('Error capturing payload:', e);
+        }
 
         // Fetch mappings
         const settingsSnap = await getDoc(doc(db, 'settings', 'webhook'));
         const settings = settingsSnap.exists() ? settingsSnap.data() : { mappings: {} };
         const mappings = settings.mappings || {};
+        console.log('Mappings fetched:', JSON.stringify(mappings, null, 2));
 
         // Helper to get value from nested path like "data.name"
         const getValue = (obj: any, path: string) => {
@@ -67,10 +79,6 @@ export default async function handler(req: any, res: any) {
             }
         };
 
-        console.log('--- Webhook Processing ---');
-        console.log('Body:', JSON.stringify(body, null, 2));
-        console.log('Mappings:', JSON.stringify(mappings, null, 2));
-
         // Apply Mappings or use Defaults
         const leadData: any = {
             name: getValue(body, mappings.name) || body.name || body.data?.name || body.nome || 'Lead s/ Nome',
@@ -81,32 +89,44 @@ export default async function handler(req: any, res: any) {
             origin: getValue(body, mappings.origin) || body.origin || body.data?.origin || 'Webhook',
             estimated_value: Number(getValue(body, mappings.estimated_value) || body.estimated_value || body.data?.estimated_value || 0),
             responsible: 'Sistema',
-            observations: '',
+            observations: `Payload Completo:\n${JSON.stringify(body, null, 2)}`,
             created_at: new Date().toISOString(),
             interactions: []
         };
 
-        console.log('Mapped Lead Data:', JSON.stringify(leadData, null, 2));
+        // Sanitize leadData (Firestore doesn't like undefined)
+        Object.keys(leadData).forEach(key => {
+            if (leadData[key] === undefined) {
+                leadData[key] = null;
+            }
+        });
 
-        // Include all unmapped data in observations for safety
-        leadData.observations = `Payload Completo:\n${JSON.stringify(body, null, 2)}`;
+        console.log('Final Lead Data to save:', JSON.stringify(leadData, null, 2));
 
         const leadId = `lead_webhook_${Date.now()}`;
-        await setDoc(doc(db, 'leads', leadId), leadData);
-
-        console.log('Lead saved successfully:', leadId);
-        console.log('--- End Webhook Processing ---');
-
-        return res.status(200).json({ success: true, id: leadId });
+        try {
+            await setDoc(doc(db, 'leads', leadId), leadData);
+            console.log('Lead saved successfully:', leadId);
+            return res.status(200).json({
+                success: true,
+                id: leadId,
+                message: 'Lead criado com sucesso',
+                mapped_data: leadData
+            });
+        } catch (e: any) {
+            console.error('FAILED TO SAVE LEAD:', e);
+            return res.status(500).json({
+                error: 'Erro ao gravar lead no banco',
+                details: e.message,
+                code: e.code,
+                mapped_data: leadData
+            });
+        }
     } catch (error: any) {
-        console.error('Webhook Error Detail:', error);
+        console.error('Webhook Fatal Error:', error);
         return res.status(500).json({
             error: error.message,
-            stack: error.stack,
-            config: {
-                projectId: firebaseConfig.projectId,
-                hasApiKey: !!firebaseConfig.apiKey
-            }
+            stack: error.stack
         });
     }
 }
