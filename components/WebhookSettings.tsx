@@ -7,7 +7,9 @@ import {
     ArrowRight,
     Info,
     CheckCircle2,
-    AlertCircle
+    AlertCircle,
+    Trash2,
+    PlusCircle
 } from 'lucide-react';
 
 interface WebhookSettingsProps {
@@ -17,6 +19,9 @@ interface WebhookSettingsProps {
 const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [profiles, setProfiles] = useState<string[]>(['default']);
+    const [activeProfile, setActiveProfile] = useState('default');
+    const [newProfileName, setNewProfileName] = useState('');
     const [settings, setSettings] = useState<any>({
         mappings: {},
         lastPayload: null,
@@ -33,12 +38,14 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
         { id: 'origin', label: 'Origem (Onde o Lead veio)', required: false },
     ];
 
-    const fetchData = async () => {
+    const fetchData = async (profile = activeProfile) => {
         try {
             setLoading(true);
-            const data = await storageService.getWebhookSettings();
-
-            // Ensure we always have a valid structure even if backend returns empty or different
+            const data = await storageService.getWebhookSettings(profile);
+            const profilesList = await storageService.getWebhookProfiles();
+            
+            setProfiles(profilesList);
+            
             const safeData = {
                 mappings: data?.mappings || {},
                 lastPayload: data?.lastPayload || null,
@@ -50,10 +57,11 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
 
             if (safeData.lastPayload) {
                 setAvailableFields(extractPaths(safeData.lastPayload));
+            } else {
+                setAvailableFields([]);
             }
         } catch (error) {
             console.error('Error in WebhookSettings fetchData:', error);
-            // Fallback to defaults on error
             setSettings({ mappings: {}, lastPayload: null, lastReceived: null });
         } finally {
             setLoading(false);
@@ -62,9 +70,8 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [activeProfile]);
 
-    // Helper to extract nested paths from an object for the mapping dropdown
     const extractPaths = (obj: any, prefix = ''): string[] => {
         if (!obj || typeof obj !== 'object') return [];
 
@@ -98,7 +105,7 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
 
     const handleSave = async () => {
         setSaving(true);
-        const result = await storageService.saveWebhookSettings(settings);
+        const result = await storageService.saveWebhookSettings(settings, activeProfile);
         setSaving(false);
         if (result.success) {
             alert('Configurações salvas com sucesso!');
@@ -107,7 +114,40 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
         }
     };
 
-    if (loading) {
+    const handleClearPayload = async () => {
+        if (!confirm('Deseja realmente limpar o histórico deste perfil?')) return;
+        
+        setSaving(true);
+        const result = await storageService.clearWebhookPayload(activeProfile);
+        setSaving(false);
+        if (result.success) {
+            setSettings(prev => ({ ...prev, lastPayload: null, lastReceived: null }));
+            setAvailableFields([]);
+        } else {
+            alert('Erro ao limpar histórico: ' + result.error);
+        }
+    };
+
+    const handleAddProfile = async () => {
+        if (!newProfileName.trim()) return;
+        const name = newProfileName.trim().toLowerCase().replace(/\s+/g, '_');
+        
+        setSaving(true);
+        const result = await storageService.saveWebhookProfile(name);
+        setSaving(false);
+        
+        if (result.success) {
+            setNewProfileName('');
+            setActiveProfile(name);
+            fetchData(name);
+        } else {
+            alert('Erro ao criar perfil: ' + result.error);
+        }
+    };
+
+    const webhookUrl = `${window.location.origin}/api/webhook${activeProfile === 'default' ? '' : `?config=${activeProfile}`}`;
+
+    if (loading && !saving) {
         return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
                 <div className="bg-white p-8 rounded-3xl shadow-xl flex items-center gap-3">
@@ -121,7 +161,7 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose}></div>
-            <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-3xl w-full max-w-5xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
 
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -131,7 +171,7 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
                         </div>
                         <div>
                             <h2 className="text-xl font-bold text-slate-800">Integração de Webhook</h2>
-                            <p className="text-xs text-slate-500 font-medium tracking-tight">Configure como os dados do seu formulário entram no CRM</p>
+                            <p className="text-xs text-slate-500 font-medium tracking-tight">Configure múltiplos funis e mapeie campos dinamicamente</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors p-2 hover:bg-slate-100 rounded-lg">
@@ -141,20 +181,53 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-8">
 
+                    {/* Profile Selection & Creation */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Perfil de Mapeamento Ativo</label>
+                            <select 
+                                value={activeProfile} 
+                                onChange={(e) => setActiveProfile(e.target.value)}
+                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+                            >
+                                {profiles.map(p => <option key={p} value={p}>{p === 'default' ? 'Padrão (Geral)' : p}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Criar Novo Perfil (Funil)</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    placeholder="Ex: funil_vendas_fb"
+                                    value={newProfileName}
+                                    onChange={(e) => setNewProfileName(e.target.value)}
+                                    className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+                                />
+                                <button 
+                                    onClick={handleAddProfile}
+                                    className="p-3 bg-slate-100 text-slate-600 hover:bg-blue-600 hover:text-white rounded-2xl transition-all"
+                                    title="Criar Perfil"
+                                >
+                                    <PlusCircle size={20} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* URL Info */}
                     <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex gap-4 items-start">
                         <div className="p-2 bg-white rounded-lg text-blue-600 shadow-sm">
                             <Info size={18} />
                         </div>
                         <div className="flex-1">
-                            <h4 className="font-bold text-blue-900 text-sm mb-1">Seu Link de Integração</h4>
-                            <p className="text-blue-800/70 text-xs mb-3">Cole este link no seu sistema de formulários (LeadForm, etc):</p>
+                            <h4 className="font-bold text-blue-900 text-sm mb-1">Seu Link de Integração para: <span className="text-blue-600 underline">#{activeProfile}</span></h4>
+                            <p className="text-blue-800/70 text-xs mb-3">Cole este link no seu sistema de formulários específico para este perfil:</p>
                             <div className="flex gap-2">
                                 <code className="bg-white px-3 py-2 rounded-xl border border-blue-200 text-blue-700 font-mono text-xs flex-1 truncate">
-                                    {window.location.origin}/api/webhook
+                                    {webhookUrl}
                                 </code>
                                 <button
-                                    onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhook`)}
+                                    onClick={() => navigator.clipboard.writeText(webhookUrl)}
                                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all"
                                 >
                                     Copiar Link
@@ -172,12 +245,23 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
                                     <RefreshCw size={16} className="text-slate-400" />
                                     Último Teste Recebido
                                 </h3>
-                                <button
-                                    onClick={fetchData}
-                                    className="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:underline"
-                                >
-                                    Atualizar
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => fetchData()}
+                                        className="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:underline"
+                                    >
+                                        Atualizar
+                                    </button>
+                                    {settings.lastPayload && (
+                                        <button
+                                            onClick={handleClearPayload}
+                                            className="text-[10px] font-bold text-red-500 uppercase tracking-wider hover:underline flex items-center gap-1"
+                                        >
+                                            <Trash2 size={10} />
+                                            Limpar
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             {settings.lastPayload ? (
@@ -197,7 +281,7 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
                                     <div className="mx-auto w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
                                         <AlertCircle size={24} />
                                     </div>
-                                    <p className="text-slate-400 text-xs font-medium">Nenhum teste recebido ainda.<br />Envie seu formulário para ver os campos aqui.</p>
+                                    <p className="text-slate-400 text-xs font-medium">Nenhum teste recebido ainda neste perfil.<br />Envie seu formulário para configurar o mapeamento.</p>
                                 </div>
                             )}
                         </div>
@@ -243,7 +327,7 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ onClose }) => {
                         onClick={onClose}
                         className="px-6 py-3 text-slate-600 font-bold hover:bg-slate-200/50 rounded-xl transition-colors"
                     >
-                        Cancelar
+                        Fechar
                     </button>
                     <button
                         onClick={handleSave}

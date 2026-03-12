@@ -341,19 +341,53 @@ export const storageService = {
   },
 
   // Webhook Settings
-  getWebhookSettings: async () => {
+  getWebhookSettings: async (profile: string = 'default') => {
     try {
-      const docSnap = await getDoc(doc(db, 'settings', 'webhook'));
+      const docSnap = await getDoc(doc(db, 'settings', `webhook_${profile}`));
       return docSnap.exists() ? docSnap.data() : { mappings: {}, lastPayload: null };
     } catch (error) {
-      console.error('Error fetching webhook settings:', error);
+      console.error(`Error fetching webhook settings for ${profile}:`, error);
       return { mappings: {}, lastPayload: null };
     }
   },
 
-  saveWebhookSettings: async (settings: any) => {
+  saveWebhookSettings: async (settings: any, profile: string = 'default') => {
     try {
-      await setDoc(doc(db, 'settings', 'webhook'), settings, { merge: true });
+      await setDoc(doc(db, 'settings', `webhook_${profile}`), settings, { merge: true });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  clearWebhookPayload: async (profile: string = 'default') => {
+    try {
+      await updateDoc(doc(db, 'settings', `webhook_${profile}`), {
+        lastPayload: null,
+        lastReceived: null
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  getWebhookProfiles: async () => {
+    try {
+      const docSnap = await getDoc(doc(db, 'settings', 'webhook_profiles'));
+      return docSnap.exists() ? docSnap.data().list || ['default'] : ['default'];
+    } catch (error) {
+      return ['default'];
+    }
+  },
+
+  saveWebhookProfile: async (profileName: string) => {
+    try {
+      const profiles = await storageService.getWebhookProfiles();
+      if (!profiles.includes(profileName)) {
+        profiles.push(profileName);
+        await setDoc(doc(db, 'settings', 'webhook_profiles'), { list: profiles });
+      }
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };

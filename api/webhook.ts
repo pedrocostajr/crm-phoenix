@@ -48,25 +48,29 @@ export default async function handler(req: any, res: any) {
             try { body = JSON.parse(body); } catch (e) { }
         }
 
-        console.log('--- Webhook Processing ---');
+        // Determine profile
+        const profile = req.query?.config || body?.config || 'default';
+        const settingsPath = `settings/webhook_${profile}`;
+
+        console.log(`--- Webhook Processing (Profile: ${profile}) ---`);
         console.log('Body:', JSON.stringify(body, null, 2));
 
-        // Capture the payload for the UI to see
+        // Capture the payload for the UI to see (per profile)
         try {
-            await setDoc(doc(db, 'settings', 'webhook'), {
+            await setDoc(doc(db, 'settings', `webhook_${profile}`), {
                 lastPayload: body,
                 lastReceived: new Date().toISOString()
             }, { merge: true });
-            console.log('Payload captured in settings/webhook');
+            console.log(`Payload captured in settings/webhook_${profile}`);
         } catch (e) {
             console.error('Error capturing payload:', e);
         }
 
-        // Fetch mappings
-        const settingsSnap = await getDoc(doc(db, 'settings', 'webhook'));
+        // Fetch mappings for the specific profile
+        const settingsSnap = await getDoc(doc(db, 'settings', `webhook_${profile}`));
         const settings = settingsSnap.exists() ? settingsSnap.data() : { mappings: {} };
         const mappings = settings.mappings || {};
-        console.log('Mappings fetched:', JSON.stringify(mappings, null, 2));
+        console.log(`Mappings fetched for ${profile}:`, JSON.stringify(mappings, null, 2));
 
         // Helper to get value from nested path like "data.name"
         const getValue = (obj: any, path: string) => {
@@ -86,10 +90,10 @@ export default async function handler(req: any, res: any) {
             phone: getValue(body, mappings.phone) || body.phone || body.data?.phone || body.telefone || '',
             company: getValue(body, mappings.company) || body.company || body.data?.company || body.empresa || '',
             status: 'Novo Lead',
-            origin: getValue(body, mappings.origin) || body.origin || body.data?.origin || 'Webhook',
+            origin: profile !== 'default' ? profile : (getValue(body, mappings.origin) || body.origin || body.data?.origin || 'Webhook'),
             estimated_value: Number(getValue(body, mappings.estimated_value) || body.estimated_value || body.data?.estimated_value || 0),
             responsible: 'Sistema',
-            observations: `Payload Completo:\n${JSON.stringify(body, null, 2)}`,
+            observations: `Payload Completo (Perfil: ${profile}):\n${JSON.stringify(body, null, 2)}`,
             created_at: new Date().toISOString(),
             interactions: []
         };
@@ -110,7 +114,7 @@ export default async function handler(req: any, res: any) {
             return res.status(200).json({
                 success: true,
                 id: leadId,
-                message: 'Lead criado com sucesso',
+                message: `Lead criado com sucesso (${profile})`,
                 mapped_data: leadData
             });
         } catch (e: any) {
