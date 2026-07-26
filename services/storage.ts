@@ -1,5 +1,5 @@
 
-import { Lead, User, LeadStatus } from '../types';
+import { Lead, User, LeadStatus, Form, FormResponse } from '../types';
 import * as XLSX from 'xlsx';
 import { db } from '../lib/firebase';
 import {
@@ -13,7 +13,8 @@ import {
   updateDoc,
   where,
   addDoc,
-  getDoc
+  getDoc,
+  increment
 } from 'firebase/firestore';
 
 export const storageService = {
@@ -391,6 +392,119 @@ export const storageService = {
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
+    }
+  },
+
+  // Forms
+  getForms: async (workspaceId?: string): Promise<Form[]> => {
+    try {
+      const formsRef = collection(db, 'forms');
+      let q = query(formsRef, orderBy('createdAt', 'desc'));
+      if (workspaceId) {
+        q = query(formsRef, where('workspaceId', '==', workspaceId), orderBy('createdAt', 'desc'));
+      }
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return { id: doc.id, ...data } as Form;
+      });
+    } catch (error) {
+      console.error('Error fetching forms:', error);
+      return [];
+    }
+  },
+
+  getForm: async (id: string): Promise<Form | null> => {
+    try {
+      const docSnap = await getDoc(doc(db, 'forms', id));
+      return docSnap.exists() ? ({ id: docSnap.id, ...docSnap.data() } as Form) : null;
+    } catch (error) {
+      console.error('Error fetching form:', error);
+      return null;
+    }
+  },
+
+  getFormBySlug: async (slug: string): Promise<Form | null> => {
+    try {
+      const q = query(collection(db, 'forms'), where('settings.slug', '==', slug));
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) return null;
+      const docSnap = querySnapshot.docs[0];
+      return { id: docSnap.id, ...docSnap.data() } as Form;
+    } catch (error) {
+      console.error('Error fetching form by slug:', error);
+      return null;
+    }
+  },
+
+  saveForm: async (form: Form): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { id, ...data } = form;
+      const cleanData = JSON.parse(JSON.stringify(data)); // strip any undefined properties for Firestore
+      await setDoc(doc(db, 'forms', id), cleanData);
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error saving form:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  deleteForm: async (id: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await deleteDoc(doc(db, 'forms', id));
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error deleting form:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Form Responses
+  getResponses: async (formId: string): Promise<FormResponse[]> => {
+    try {
+      const responsesRef = collection(db, 'form_responses');
+      const q = query(responsesRef, where('formId', '==', formId), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return { id: doc.id, ...data } as FormResponse;
+      });
+    } catch (error) {
+      console.error('Error fetching responses:', error);
+      return [];
+    }
+  },
+
+  saveResponse: async (response: FormResponse): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { id, ...data } = response;
+      const cleanData = JSON.parse(JSON.stringify(data)); // strip any undefined properties for Firestore
+      await setDoc(doc(db, 'form_responses', id), cleanData);
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error saving response:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  deleteResponse: async (id: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await deleteDoc(doc(db, 'form_responses', id));
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error deleting response:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  incrementFormMetric: async (formId: string, metric: 'viewsCount' | 'startsCount' | 'completionsCount' | 'partialsCount'): Promise<void> => {
+    try {
+      await updateDoc(doc(db, 'forms', formId), {
+        [metric]: increment(1),
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error(`Error incrementing ${metric}:`, error);
     }
   }
 };

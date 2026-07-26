@@ -9,7 +9,8 @@ import {
   Settings,
   Flame,
   Download,
-  Upload
+  Upload,
+  ClipboardList
 } from 'lucide-react';
 import { storageService } from '../services/storage';
 
@@ -27,6 +28,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'leads', label: 'Gestão de Leads', icon: TableIcon },
     { id: 'kanban', label: 'Pipeline (Kanban)', icon: Kanban },
+    { id: 'forms', label: 'Formulários', icon: ClipboardList },
     { id: 'users', label: 'Usuários', icon: Users },
   ];
 

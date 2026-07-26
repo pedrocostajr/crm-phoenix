@@ -11,6 +11,10 @@ import UserManagement from './components/UserManagement';
 import LeadModal from './components/LeadModal';
 import InteractionTimeline from './components/InteractionTimeline';
 import WebhookSettings from './components/WebhookSettings';
+import FormList from './components/FormList';
+import FormEditor from './components/FormEditor';
+import FormViewer from './components/FormViewer';
+import FormResponsesView from './components/FormResponsesView';
 import { Lock, Flame, Mail, Key } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -52,6 +56,8 @@ const App: React.FC = () => {
   const [isInteractionOpen, setIsInteractionOpen] = useState(false);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [isWebhookSettingsOpen, setIsWebhookSettingsOpen] = useState(false);
+  const [editingFormId, setEditingFormId] = useState<string | null>(null);
+  const [viewingResponsesFormId, setViewingResponsesFormId] = useState<string | null>(null);
 
   // Initialize Data
   const fetchData = async () => {
@@ -192,6 +198,14 @@ const App: React.FC = () => {
     }
   };
 
+  // Check if we are on a public form URL: /f/slug
+  const isPublicFormPath = window.location.pathname.startsWith('/f/');
+  const formSlug = isPublicFormPath ? window.location.pathname.split('/f/')[1] : null;
+
+  if (isPublicFormPath && formSlug) {
+    return <FormViewer formSlug={formSlug} />;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -314,6 +328,26 @@ const App: React.FC = () => {
           onUpdate={handleUpdateUser}
           onDelete={handleDeleteUser}
         />
+      )}
+
+      {activeTab === 'forms' && (
+        editingFormId ? (
+          <FormEditor
+            formId={editingFormId}
+            onBack={() => setEditingFormId(null)}
+          />
+        ) : viewingResponsesFormId ? (
+          <FormResponsesView
+            formId={viewingResponsesFormId}
+            onBack={() => setViewingResponsesFormId(null)}
+          />
+        ) : (
+          <FormList
+            userId={auth.user?.id || 'system'}
+            onEditForm={(id) => setEditingFormId(id)}
+            onViewResponses={(id) => setViewingResponsesFormId(id)}
+          />
+        )
       )}
 
       {isLeadModalOpen && (
