@@ -760,5 +760,35 @@ export const storageService = {
       console.error('Error recovering orphaned responses:', error);
       return 0;
     }
+  },
+
+  getNotifications: async (): Promise<any[]> => {
+    try {
+      const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      return [];
+    }
+  },
+
+  createNotification: async (notif: { title: string; body: string; createdAt: string; read: boolean }): Promise<void> => {
+    try {
+      const cleanData = JSON.parse(JSON.stringify(notif));
+      await addDoc(collection(db, 'notifications'), cleanData);
+    } catch (error) {
+      console.error('Error creating notification:', error);
+    }
+  },
+
+  markNotificationsAsRead: async (notifIds: string[]): Promise<void> => {
+    try {
+      for (const id of notifIds) {
+        await updateDoc(doc(db, 'notifications', id), { read: true });
+      }
+    } catch (error) {
+      console.error('Error marking notifications as read:', error);
+    }
   }
 };

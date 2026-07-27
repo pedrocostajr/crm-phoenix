@@ -86,13 +86,12 @@ const FormResponsesView: React.FC<FormResponsesViewProps> = ({ formId, onBack })
 
   // Analytics Computations
   const stats = useMemo(() => {
-    const totalViews = form?.viewsCount || 0;
-    const totalStarts = form?.startsCount || 0;
-    const totalCompletions = form?.completionsCount || 0;
-    
-    // Count partial responses
+    const totalCompletions = responses.filter(r => r.status === 'completed').length;
     const totalPartials = responses.filter(r => r.status === 'partial').length;
     const totalAbandoned = responses.filter(r => r.status === 'abandoned' || r.status === 'started').length;
+    
+    const totalViews = Math.max(form?.viewsCount || 0, totalCompletions + totalPartials + totalAbandoned);
+    const totalStarts = Math.max(form?.startsCount || 0, totalCompletions + totalPartials);
 
     const conversionRate = totalViews > 0 ? (totalCompletions / totalViews) * 100 : 0;
     const abandonmentRate = totalStarts > 0 ? ((totalStarts - totalCompletions) / totalStarts) * 100 : 0;

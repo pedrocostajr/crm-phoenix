@@ -644,9 +644,13 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
           ...completedResponse,
           leadId: leadId || undefined
         });
-        if (!linkRes.success) {
-          throw new Error(`Erro ao vincular Lead à resposta: ${linkRes.error}`);
-        }
+        // Save notification to the database client-side
+        await storageService.createNotification({
+          title: 'Novo Lead',
+          body: `${leadName} preencheu o formulário de "${form.settings?.publicTitle || 'Captação'}".`,
+          createdAt: new Date().toISOString(),
+          read: false
+        });
       }
 
       // Increment form completionsCount

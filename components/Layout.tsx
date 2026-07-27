@@ -13,7 +13,7 @@ import {
   ClipboardList,
   Bell
 } from 'lucide-react';
-import { collection, query, onSnapshot } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { storageService } from '../services/storage';
 
@@ -41,54 +41,50 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
         }
       }
 
-      const leadsRef = collection(db, 'leads');
+      const notifRef = collection(db, 'notifications');
+      const q = query(notifRef, orderBy('createdAt', 'desc'));
 
-      const unsubscribe = onSnapshot(leadsRef, (snapshot) => {
+      const unsubscribe = onSnapshot(q, (snapshot) => {
         if (isInitialMount.current) {
           isInitialMount.current = false;
-          const ids = snapshot.docs.map(doc => doc.id);
-          existingLeadIds.current = new Set(ids);
+          const initialNotifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+          setNotifications(initialNotifs);
+          setUnreadCount(initialNotifs.filter(n => !n.read).length);
           return;
         }
 
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
-            const lead = change.doc.data();
-            const leadId = change.doc.id;
+            const notif = { id: change.doc.id, ...change.doc.data() } as any;
 
-            if (!existingLeadIds.current.has(leadId)) {
-              existingLeadIds.current.add(leadId);
-
-              try {
-                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
-                audio.play();
-              } catch (soundErr) {
-                console.warn('Audio play blocked:', soundErr);
-              }
-
-              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-                new Notification('🚀 Novo Lead no CRM!', {
-                  body: `${lead.name} (${lead.company || 'Individual'}) cadastrou-se via ${lead.origin || 'Formulário'}.`,
-                  icon: '/favicon.ico'
-                });
-              }
-
-              const leadTime = lead.created_at ? new Date(lead.created_at) : new Date();
-              const newNotif = {
-                id: leadId,
-                title: 'Novo Lead',
-                body: `${lead.name} preencheu o formulário de ${lead.origin || 'Captação'}.`,
-                time: leadTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-                read: false
-              };
-
-              setNotifications(prev => [newNotif, ...prev]);
-              setUnreadCount(prev => prev + 1);
+            try {
+              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+              audio.play();
+            } catch (soundErr) {
+              console.warn('Audio play blocked:', soundErr);
             }
+
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              new Notification('🚀 ' + notif.title, {
+                body: notif.body,
+                icon: '/favicon.ico'
+              });
+            }
+
+            setNotifications(prev => {
+              if (prev.some(p => p.id === notif.id)) return prev;
+              return [notif, ...prev];
+            });
+            setUnreadCount(prev => prev + 1);
+          } else if (change.type === 'modified') {
+            const notif = { id: change.doc.id, ...change.doc.data() } as any;
+            setNotifications(prev => prev.map(p => p.id === notif.id ? notif : p));
+          } else if (change.type === 'removed') {
+            setNotifications(prev => prev.filter(p => p.id !== change.doc.id));
           }
         });
       }, (error) => {
-        console.error('Error listening to leads collection for notifications:', error);
+        console.error('Error listening to notifications collection:', error);
       });
 
       return () => unsubscribe();
@@ -203,8 +199,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
                 <button
                   onClick={() => {
                     setShowNotifications(!showNotifications);
-                    setUnreadCount(0);
-                    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                    if (unreadCount > 0) {
+                      const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+                      storageService.markNotificationsAsRead(unreadIds);
+                      setUnreadCount(0);
+                    }
                   }}
                   className={`p-2 hover:bg-slate-50 rounded-xl transition-all relative ${
                     unreadCount > 0 ? 'text-blue-600 animate-bounce' : 'text-slate-500'
