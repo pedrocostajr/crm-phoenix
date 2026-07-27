@@ -222,6 +222,22 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
         return;
       }
 
+      setTestLogs(prev => [...prev, '⏳ Gravando notificação com ID específico no Firestore (setDoc)...']);
+      try {
+        await storageService.createNotification({
+          id: `test_notif_${Date.now()}`,
+          title: 'Teste de Diagnóstico com ID',
+          body: 'Notificação com ID gravada com sucesso.',
+          createdAt: new Date().toISOString(),
+          read: false
+        });
+        setTestLogs(prev => [...prev, '✅ Notificação com ID específica gravada com sucesso!']);
+      } catch (notifIdErr: any) {
+        setTestLogs(prev => [...prev, `❌ Erro ao salvar notificação com ID: ${notifIdErr.message}`]);
+        setTesting(false);
+        return;
+      }
+
       setTestLogs(prev => [...prev, '⏳ Lendo notificações do Firestore para verificar leitura...']);
       try {
         const notifList = await storageService.getNotifications();
