@@ -242,9 +242,8 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
       try {
         const notifList = await storageService.getNotifications();
         setTestLogs(prev => [...prev, `✅ Sucesso! Total de notificações no banco: ${notifList.length}`]);
-        if (notifList.length > 0) {
-          setTestLogs(prev => [...prev, `ℹ️ Última notificação no banco: "${notifList[0].title}" - "${notifList[0].body}"`]);
-        }
+        const titles = notifList.map((n, i) => `${i + 1}. [${n.title}] "${n.body}"`).join('\n');
+        setTestLogs(prev => [...prev, `ℹ️ Lista de notificações:\n${titles}`]);
       } catch (readErr: any) {
         setTestLogs(prev => [...prev, `❌ Erro ao ler notificações: ${readErr.message}`]);
         setTesting(false);
