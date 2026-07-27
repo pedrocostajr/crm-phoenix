@@ -784,6 +784,7 @@ export const storageService = {
       }
     } catch (error) {
       console.error('Error creating notification:', error);
+      throw error;
     }
   },
 
