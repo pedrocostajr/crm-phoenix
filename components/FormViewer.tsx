@@ -527,7 +527,10 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
         };
 
         // Write the completed response to Firestore client-side
-        await storageService.saveResponse(completedResponse);
+        const rRes = await storageService.saveResponse(completedResponse);
+        if (!rRes.success) {
+          throw new Error(`Banco de dados indisponível (Erro ao salvar respostas: ${rRes.error})`);
+        }
 
         // Gather mapped answers to build the Lead
         let leadName = '';
@@ -603,7 +606,10 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
             observations: (existingLead.observations || '') + `\n\n[Atualizado via Formulário] ${new Date().toLocaleDateString('pt-BR')}:\n` + leadObservations,
             interactions: [...(existingLead.interactions || []), newInteraction]
           };
-          await storageService.saveLead(updatedLead);
+          const lRes = await storageService.saveLead(updatedLead);
+          if (!lRes.success) {
+            throw new Error(`Erro ao atualizar dados do Lead: ${lRes.error}`);
+          }
           leadId = existingLeadId;
         } else {
           // Create new lead client-side
@@ -625,15 +631,21 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
             observations: leadObservations,
             interactions: [newInteraction]
           };
-          await storageService.saveLead(newLead);
+          const lRes = await storageService.saveLead(newLead);
+          if (!lRes.success) {
+            throw new Error(`Erro ao criar novo Lead: ${lRes.error}`);
+          }
           leadId = newLeadId;
         }
 
         // Link response to lead client-side
-        await storageService.saveResponse({
+        const linkRes = await storageService.saveResponse({
           ...completedResponse,
           leadId: leadId || undefined
         });
+        if (!linkRes.success) {
+          throw new Error(`Erro ao vincular Lead à resposta: ${linkRes.error}`);
+        }
       }
 
       // Increment form completionsCount
