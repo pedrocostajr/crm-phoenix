@@ -57,11 +57,38 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
           if (change.type === 'added') {
             const notif = { id: change.doc.id, ...change.doc.data() } as any;
 
+            // Play premium synthetic double-chime notification sound
             try {
-              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
-              audio.play();
+              const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+              if (AudioCtx) {
+                const ctx = new AudioCtx();
+                
+                // Tone 1 (G5)
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(783.99, ctx.currentTime);
+                gain1.gain.setValueAtTime(0.15, ctx.currentTime);
+                gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc1.start(ctx.currentTime);
+                osc1.stop(ctx.currentTime + 0.3);
+
+                // Tone 2 (C6) - delayed slightly
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.1);
+                gain2.gain.setValueAtTime(0.15, ctx.currentTime + 0.1);
+                gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.start(ctx.currentTime + 0.1);
+                osc2.stop(ctx.currentTime + 0.45);
+              }
             } catch (soundErr) {
-              console.warn('Audio play blocked:', soundErr);
+              console.warn('Synthetic audio play failed:', soundErr);
             }
 
             if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -203,6 +230,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
                       const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
                       storageService.markNotificationsAsRead(unreadIds);
                       setUnreadCount(0);
+                    }
+                    // Request browser notification permissions on user gesture
+                    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                      Notification.requestPermission();
                     }
                   }}
                   className={`p-2 hover:bg-slate-50 rounded-xl transition-all relative ${
