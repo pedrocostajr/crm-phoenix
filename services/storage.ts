@@ -186,35 +186,109 @@ export const storageService = {
 
   importLeadsFromCSV: async (file: File): Promise<boolean> => {
     try {
-      const data = await file.arrayBuffer();
-      // @ts-ignore
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      let jsonData: any[] = [];
+
+      // Fallback CSV text parser if SheetJS binary read fails
+      const parseCSVText = (text: string): any[] => {
+        const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+        if (lines.length < 2) return [];
+
+        const firstLine = lines[0];
+        const separator = firstLine.includes(';') ? ';' : ',';
+
+        const splitLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === separator && !inQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          result.push(current.trim());
+          return result;
+        };
+
+        const headers = splitLine(lines[0]);
+        const rows: any[] = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = splitLine(lines[i]);
+          const row: any = {};
+          headers.forEach((header, index) => {
+            row[header] = values[index] !== undefined ? values[index] : '';
+          });
+          rows.push(row);
+        }
+        return rows;
+      };
+
+      try {
+        const data = await file.arrayBuffer();
+        // @ts-ignore
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        jsonData = XLSX.utils.sheet_to_json(worksheet);
+      } catch (xlsxError) {
+        console.warn('XLSX binary parser failed, trying text/csv fallback:', xlsxError);
+        const text = await file.text();
+        jsonData = parseCSVText(text);
+      }
 
       const newLeads: any[] = [];
 
       const parseDate = (dateStr: any): string => {
-        if (!dateStr) return new Date().toISOString();
-        if (dateStr instanceof Date) return dateStr.toISOString();
-        if (typeof dateStr === 'number') {
-          const date = new Date(Math.round((dateStr - 25569) * 86400 * 1000));
-          return date.toISOString();
-        }
-        const str = String(dateStr).trim();
-        if (str.match(/^\d{2}\/\d{2}\/\d{4}/)) {
-          const [day, month, year] = str.split('/');
-          return new Date(`${year}-${month}-${day}`).toISOString();
+        try {
+          if (!dateStr) return new Date().toISOString();
+          if (dateStr instanceof Date && !isNaN(dateStr.getTime())) return dateStr.toISOString();
+          if (typeof dateStr === 'number') {
+            const date = new Date(Math.round((dateStr - 25569) * 86400 * 1000));
+            return isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+          }
+          const str = String(dateStr).trim();
+          
+          // Try direct parsing (handles ISO dates and most text formats)
+          const parsed = new Date(str);
+          if (!isNaN(parsed.getTime())) {
+            return parsed.toISOString();
+          }
+
+          // Handles DD/MM/YYYY format with optional time
+          const dateMatch = str.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+          if (dateMatch) {
+            const [, day, month, year] = dateMatch;
+            const date = new Date(`${year}-${month}-${day}`);
+            if (!isNaN(date.getTime())) {
+              return date.toISOString();
+            }
+          }
+        } catch (err) {
+          console.error('Failed to parse date:', dateStr, err);
         }
         return new Date().toISOString();
       };
 
       const parseCurrency = (val: any): number => {
-        if (!val) return 0;
+        if (val === undefined || val === null || val === '') return 0;
         if (typeof val === 'number') return val;
-        const clean = String(val).replace(/\./g, '').replace(',', '.');
-        return parseFloat(clean) || 0;
+        let str = String(val).replace(/[R$\s]/g, '').trim();
+        if (str.includes('.') && str.includes(',')) {
+          if (str.indexOf('.') < str.indexOf(',')) {
+            str = str.replace(/\./g, '').replace(',', '.');
+          } else {
+            str = str.replace(/,/g, '');
+          }
+        } else if (str.includes(',')) {
+          str = str.replace(',', '.');
+        }
+        return parseFloat(str) || 0;
       };
 
       // Helper to dynamically match column headers case-insensitively and space-insensitively
