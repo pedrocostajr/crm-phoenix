@@ -63,6 +63,15 @@ const App: React.FC = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
+      try {
+        const recoveredCount = await storageService.recoverOrphanedResponses();
+        if (recoveredCount > 0) {
+          console.log(`[Phoenix CRM] Recuperados com sucesso ${recoveredCount} leads órfãos de formulários.`);
+        }
+      } catch (recErr) {
+        console.error("Failed to run orphaned leads recovery:", recErr);
+      }
+
       const [storedLeads, storedUsers] = await Promise.all([
         storageService.getLeads(),
         storageService.getUsers()

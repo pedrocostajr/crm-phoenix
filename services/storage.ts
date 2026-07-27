@@ -613,5 +613,145 @@ export const storageService = {
     } catch (error) {
       console.error(`Error incrementing ${metric}:`, error);
     }
+  },
+
+  recoverOrphanedResponses: async (): Promise<number> => {
+    try {
+      const responsesRef = collection(db, 'form_responses');
+      const querySnapshot = await getDocs(responsesRef);
+      const responses = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+
+      const timeThreshold = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const orphaned = responses.filter(r => 
+        (r.createdAt && r.createdAt > timeThreshold) && 
+        !r.leadId && 
+        r.answers && 
+        Object.keys(r.answers).length > 0
+      );
+
+      if (orphaned.length === 0) return 0;
+
+      const leadsRef = collection(db, 'leads');
+      const leadsSnapshot = await getDocs(leadsRef);
+      const leads = leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      
+      let count = 0;
+      for (const resp of orphaned) {
+        const formRef = doc(db, 'forms', resp.formId);
+        const formSnap = await getDoc(formRef);
+        let form: any = null;
+        if (formSnap.exists()) {
+          form = formSnap.data();
+        }
+
+        let leadName = '';
+        let leadEmail = '';
+        let leadPhone = '';
+        let leadCompany = '';
+        let leadEstimatedValue = 0;
+        let leadObservations = `Submissão do formulário: "${form?.settings?.publicTitle || 'Formulário'}" (Recuperado)\n\nRespostas:\n`;
+
+        Object.values(resp.answers).forEach((ans: any) => {
+          leadObservations += `- **${ans.questionTitle}**: ${Array.isArray(ans.value) ? ans.value.join(', ') : ans.value}\n`;
+
+          if (ans.crmField === 'name' && ans.value) leadName = String(ans.value);
+          if (ans.crmField === 'email' && ans.value) leadEmail = String(ans.value).trim().toLowerCase();
+          if (ans.crmField === 'phone' && ans.value) leadPhone = String(ans.value).trim();
+          if (ans.crmField === 'company' && ans.value) leadCompany = String(ans.value);
+          if (ans.crmField === 'estimatedValue' && ans.value) leadEstimatedValue = Number(ans.value) || 0;
+        });
+
+        if (!leadName) {
+          leadName = leadEmail ? leadEmail.split('@')[0] : 'Lead s/ Nome';
+        }
+
+        let existingLead: any = null;
+        let existingLeadId: string | null = null;
+
+        if (leadEmail) {
+          const match = leads.find((l: any) => l.email?.trim().toLowerCase() === leadEmail);
+          if (match) {
+            existingLead = match;
+            existingLeadId = match.id;
+          }
+        }
+        if (!existingLeadId && leadPhone) {
+          const match = leads.find((l: any) => l.phone?.trim() === leadPhone);
+          if (match) {
+            existingLead = match;
+            existingLeadId = match.id;
+          }
+        }
+
+        const stage = form?.automations?.pipelineStage || 'Novo Lead';
+        const responsible = form?.automations?.responsibleUser || 'Sistema';
+        const baseTags = form?.automations?.addTags || [];
+        const formTag = `form:${form?.settings?.slug || resp.formId}`;
+        const allTags = Array.from(new Set([...baseTags, formTag]));
+
+        const randId = typeof crypto !== 'undefined' && (crypto as any).randomUUID 
+          ? (crypto as any).randomUUID() 
+          : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
+        const newInteraction = {
+          id: randId,
+          type: 'Outro' as const,
+          date: new Date().toISOString(),
+          description: `Submeteu o formulário: ${form?.settings?.publicTitle || 'Formulário'} (Recuperado)\n${leadObservations}`
+        };
+
+        let finalLeadId = '';
+        if (existingLeadId && existingLead) {
+          const updatedLead = {
+            id: existingLeadId,
+            name: existingLead.name || leadName,
+            company: existingLead.company || leadCompany,
+            email: existingLead.email || leadEmail,
+            phone: existingLead.phone || leadPhone,
+            estimatedValue: existingLead.estimatedValue || leadEstimatedValue,
+            responsible: existingLead.responsible || responsible,
+            tags: Array.from(new Set([...(existingLead.tags || []), ...allTags])),
+            observations: (existingLead.observations || '') + `\n\n[Recuperado via Formulário] ${new Date().toLocaleDateString('pt-BR')}:\n` + leadObservations,
+            interactions: [...(existingLead.interactions || []), newInteraction]
+          };
+          await storageService.saveLead(updatedLead);
+          finalLeadId = existingLeadId;
+        } else {
+          const newLeadId = typeof crypto !== 'undefined' && (crypto as any).randomUUID
+            ? (crypto as any).randomUUID()
+            : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
+          const newLead = {
+            id: newLeadId,
+            name: leadName,
+            company: leadCompany,
+            email: leadEmail,
+            phone: leadPhone,
+            status: stage,
+            estimatedValue: leadEstimatedValue,
+            origin: form?.settings?.publicTitle || 'Formulário',
+            responsible: responsible,
+            tags: allTags,
+            observations: leadObservations,
+            interactions: [newInteraction]
+          };
+          await storageService.saveLead(newLead);
+          finalLeadId = newLeadId;
+        }
+
+        const responseRef = doc(db, 'form_responses', resp.id);
+        await updateDoc(responseRef, {
+          leadId: finalLeadId,
+          status: 'completed',
+          updatedAt: new Date().toISOString()
+        });
+
+        count++;
+      }
+      return count;
+    } catch (error) {
+      console.error('Error recovering orphaned responses:', error);
+      return 0;
+    }
   }
 };

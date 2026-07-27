@@ -855,6 +855,28 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
                   </div>
                   <h3 className="text-xl font-bold">Respostas salvas!</h3>
                   <p className="text-sm opacity-65 font-medium leading-normal max-w-xs">{form.settings.endedMessage || 'Obrigado por dedicar seu tempo para responder a esta pesquisa.'}</p>
+                  
+                  <button
+                    onClick={() => {
+                      const newRespId = `resp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+                      localStorage.setItem(`resp_${form.id}`, newRespId);
+                      setResponseId(newRespId);
+                      setAnswers({});
+                      setCurrentIdx(0);
+                      setHistoryIdx([]);
+                      setSubmitted(false);
+                      setSubmitting(false);
+                      startTimeRef.current = Date.now();
+                    }}
+                    className="mt-3 px-5 py-2.5 text-xs font-bold transition-all hover:scale-[1.02] shadow-sm"
+                    style={{ 
+                      backgroundColor: form.theme.buttonColor, 
+                      color: form.theme.buttonTextColor, 
+                      borderRadius: form.theme.borderRadius 
+                    }}
+                  >
+                    Enviar Outra Resposta
+                  </button>
                 </div>
               )}
 
