@@ -23,15 +23,18 @@ interface LeadTableProps {
   leads: Lead[];
   onEdit: (lead: Lead) => void;
   onDelete: (id: string) => void;
+  onBulkDelete?: (ids: string[]) => Promise<void> | void;
   onAdd: () => void;
   onInteraction: (lead: Lead) => void;
 }
 
-const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, onInteraction }) => {
+const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onBulkDelete, onAdd, onInteraction }) => {
   const { stages } = usePipeline();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'Todos'>('Todos');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
   const itemsPerPage = 8;
 
   const filteredLeads = useMemo(() => {
@@ -58,11 +61,8 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
     const stage = stages.find(s => s.name === status);
     if (!stage) return { bg: 'bg-slate-100 border-slate-200', color: 'text-slate-700' };
 
-    // stage.color is like "bg-blue-500"
-    // We want to convert to "bg-blue-100" and "text-blue-700"
     const baseColor = stage.color.replace('bg-', '').replace('-500', '');
 
-    // Handle special cases or default
     return {
       bg: `bg-${baseColor}-100 border-${baseColor}-200`,
       color: `text-${baseColor}-700`
@@ -83,8 +83,77 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
     }
   };
 
+  const isAllPaginatedSelected = paginatedLeads.length > 0 && paginatedLeads.every(l => selectedLeadIds.includes(l.id));
+
+  const handleSelectAll = () => {
+    if (isAllPaginatedSelected) {
+      setSelectedLeadIds(prev => prev.filter(id => !paginatedLeads.some(l => l.id === id)));
+    } else {
+      const newIds = paginatedLeads.map(l => l.id);
+      setSelectedLeadIds(prev => Array.from(new Set([...prev, ...newIds])));
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedLeadIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLeadIds.length === 0) return;
+    const count = selectedLeadIds.length;
+    if (confirm(`Tem certeza que deseja excluir ${count} lead(s) selecionado(s)?`)) {
+      setIsDeleting(true);
+      try {
+        if (onBulkDelete) {
+          await onBulkDelete(selectedLeadIds);
+        } else {
+          for (const id of selectedLeadIds) {
+            await onDelete(id);
+          }
+        }
+        setSelectedLeadIds([]);
+      } catch (err) {
+        console.error('Erro ao excluir leads em lote:', err);
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
+
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
+      {/* Bulk Action Bar */}
+      {selectedLeadIds.length > 0 && (
+        <div className="bg-gradient-to-r from-red-500 to-rose-600 border border-red-400 text-white rounded-2xl p-4 flex justify-between items-center shadow-lg shadow-red-500/20 animate-in slide-in-from-top duration-200">
+          <div className="flex items-center gap-3">
+            <span className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center font-black text-xs text-white">
+              {selectedLeadIds.length}
+            </span>
+            <span className="text-sm font-bold tracking-tight">
+              {selectedLeadIds.length === 1 ? '1 lead selecionado' : `${selectedLeadIds.length} leads selecionados`}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSelectedLeadIds([])}
+              className="px-4 py-2 text-xs font-bold text-white/80 hover:text-white transition-colors"
+            >
+              Limpar Seleção
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={isDeleting}
+              className="px-5 py-2.5 bg-white hover:bg-slate-100 text-red-600 rounded-xl text-xs font-black flex items-center gap-2 shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+            >
+              <Trash2 size={16} />
+              {isDeleting ? 'Excluindo...' : `Excluir ${selectedLeadIds.length} ${selectedLeadIds.length === 1 ? 'Lead' : 'Leads'}`}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header Actions */}
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
         <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
@@ -150,7 +219,15 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-200">
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Lead / Empresa</th>
+                <th className="pl-6 pr-2 py-4 w-10">
+                  <input
+                    type="checkbox"
+                    checked={isAllPaginatedSelected}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                </th>
+                <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Lead / Empresa</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contato</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Valor Estimado</th>
@@ -161,9 +238,18 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
             <tbody className="divide-y divide-slate-100">
               {paginatedLeads.map((lead) => {
                 const statusStyle = getStatusStyle(lead.status);
+                const isSelected = selectedLeadIds.includes(lead.id);
                 return (
-                  <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors group">
-                    <td className="px-6 py-4">
+                  <tr key={lead.id} className={`hover:bg-slate-50/80 transition-colors group ${isSelected ? 'bg-blue-50/40' : ''}`}>
+                    <td className="pl-6 pr-2 py-4 w-10">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleSelect(lead.id)}
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
+                    <td className="px-4 py-4">
                       <div className="flex flex-col">
                         <span className="font-bold text-slate-900">{lead.name}</span>
                         <span className="text-xs text-slate-550 flex items-center gap-1 mt-0.5">
@@ -234,7 +320,7 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
               })}
               {paginatedLeads.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400 italic">
                     Nenhum lead encontrado com os filtros atuais.
                   </td>
                 </tr>

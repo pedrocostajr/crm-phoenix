@@ -220,6 +220,13 @@ const App: React.FC = () => {
     }
   };
 
+  const handleBulkDeleteLeads = async (ids: string[]) => {
+    for (const id of ids) {
+      await storageService.deleteLead(id);
+    }
+    await fetchData();
+  };
+
   const handleUpdateStatus = async (id: string, newStatus: LeadStatus) => {
     const lead = leads.find(l => l.id === id);
     if (lead) {
@@ -383,6 +390,7 @@ const App: React.FC = () => {
             setIsLeadModalOpen(true);
           }}
           onDelete={handleDeleteLead}
+          onBulkDelete={handleBulkDeleteLeads}
           onInteraction={(lead) => {
             setActiveLead(lead);
             setIsInteractionOpen(true);
