@@ -12,34 +12,25 @@ export const usePipeline = () => {
         const stagesRef = collection(db, 'pipeline_stages');
         const q = query(stagesRef, orderBy('position', 'asc'));
 
-        let isSeeding = false;
-
         // Real-time synchronization of stages list across all instances of the hook
-        const unsubscribe = onSnapshot(q, async (snapshot) => {
+        const unsubscribe = onSnapshot(q, (snapshot) => {
             if (!snapshot.empty) {
                 const fetchedStages = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 })) as PipelineStage[];
                 setStages(fetchedStages);
-            } else if (!isSeeding) {
-                // Seeding: If Firestore is empty, save the 5 default stages to the database
-                isSeeding = true;
-                const defaultStages = [
-                    { name: 'Novo Lead', position: 0, color: 'bg-blue-500' },
-                    { name: 'Em Contato', position: 1, color: 'bg-yellow-500' },
-                    { name: 'Proposta Enviada', position: 2, color: 'bg-purple-500' },
-                    { name: 'Negociação', position: 3, color: 'bg-orange-500' },
-                    { name: 'Ganho', position: 4, color: 'bg-green-500' }
-                ];
-                
-                try {
-                    for (const ds of defaultStages) {
-                        await storageService.savePipelineStage(ds);
-                    }
-                } catch (error) {
-                    console.error('Failed to seed default pipeline stages:', error);
-                }
+            } else {
+                // Fallback default stages in memory if Firestore collection is empty
+                // Removing database write operations here to avoid concurrent seeding race conditions
+                setStages([
+                    { id: '1', name: 'Novo Lead', position: 0, color: 'bg-blue-500' },
+                    { id: '2', name: 'Em Contato', position: 1, color: 'bg-yellow-500' },
+                    { id: '3', name: 'Proposta Enviada', position: 2, color: 'bg-purple-500' },
+                    { id: '4', name: 'Negociação', position: 3, color: 'bg-orange-500' },
+                    { id: '5', name: 'Ganho', position: 4, color: 'bg-green-500' },
+                    { id: '6', name: 'Perdido', position: 5, color: 'bg-red-500' }
+                ]);
             }
             setLoading(false);
         }, (error) => {
