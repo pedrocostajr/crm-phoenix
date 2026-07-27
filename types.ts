@@ -111,6 +111,8 @@ export interface FormSettings {
   seoTitle?: string;
   seoDescription?: string;
   lgpdConsentText?: string;
+  metaPixelId?: string;
+  googleAnalyticsId?: string;
 }
 
 export interface FormAutomation {

@@ -124,6 +124,69 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
     fetchFormBySlug();
   }, [formSlug]);
 
+  // Inject Meta Pixel and Google Analytics Scripts dynamically based on form settings
+  useEffect(() => {
+    if (!form) return;
+
+    const { metaPixelId, googleAnalyticsId } = form.settings;
+
+    // 1. Meta Pixel (Facebook) setup and PageView tracking
+    if (metaPixelId) {
+      const pixelId = metaPixelId.trim();
+      if (!window.document.getElementById(`meta-pixel-${pixelId}`)) {
+        const fbScript = window.document.createElement('script');
+        fbScript.id = `meta-pixel-${pixelId}`;
+        fbScript.innerHTML = `
+          !function(f,b,e,v,n,t,s)
+          {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+          n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+          if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+          n.queue=[];t=b.createElement(e);t.async=!0;
+          t.src=v;s=b.getElementsByTagName(e)[0];
+          s.parentNode.insertBefore(t,s)}(window, document,'script',
+          'https://connect.facebook.net/en_US/fbevents.js');
+          fbq('init', '${pixelId}');
+          fbq('track', 'PageView');
+        `;
+        window.document.head.appendChild(fbScript);
+      } else {
+        try {
+          (window as any).fbq?.('track', 'PageView');
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+
+    // 2. Google Analytics (gtag.js) setup and pageview tracking
+    if (googleAnalyticsId) {
+      const gaId = googleAnalyticsId.trim();
+      if (!window.document.getElementById(`ga-script-${gaId}`)) {
+        const gaScript = window.document.createElement('script');
+        gaScript.id = `ga-script-${gaId}`;
+        gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
+        gaScript.async = true;
+        window.document.head.appendChild(gaScript);
+
+        const gaInitScript = window.document.createElement('script');
+        gaInitScript.id = `ga-init-${gaId}`;
+        gaInitScript.innerHTML = `
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', '${gaId}');
+        `;
+        window.document.head.appendChild(gaInitScript);
+      } else {
+        try {
+          (window as any).gtag?.('config', gaId);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, [form]);
+
   // Focus input when index changes
   useEffect(() => {
     if (inputRef.current) {
@@ -438,6 +501,29 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
       // Clear local progress
       localStorage.removeItem(`progress_${form.id}`);
       localStorage.removeItem(`resp_${form.id}`);
+
+      // Track conversion events on successful form submit
+      if (form.settings.metaPixelId) {
+        try {
+          (window as any).fbq?.('track', 'Lead', {
+            content_name: form.settings.internalName,
+            status: 'completed'
+          });
+        } catch (fbError) {
+          console.warn('Meta Pixel Lead tracking failed:', fbError);
+        }
+      }
+
+      if (form.settings.googleAnalyticsId) {
+        try {
+          (window as any).gtag?.('event', 'generate_lead', {
+            event_category: 'engagement',
+            event_label: form.settings.internalName
+          });
+        } catch (gaError) {
+          console.warn('Google Analytics Lead tracking failed:', gaError);
+        }
+      }
 
       setSubmitted(true);
 

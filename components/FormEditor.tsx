@@ -1433,6 +1433,30 @@ const FormEditor: React.FC<FormEditorProps> = ({ formId, onBack }) => {
                   />
                 </div>
 
+                {/* Meta Pixel ID */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">ID do Pixel da Meta (Facebook)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 1234567890"
+                    value={form.settings.metaPixelId || ''}
+                    onChange={(e) => handleUpdateSettings('metaPixelId', e.target.value.replace(/\D/g, ''))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none text-slate-600"
+                  />
+                </div>
+
+                {/* Google Analytics ID */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">ID do Google Analytics (G-XXXXXX)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: G-XXXXXXXXXX"
+                    value={form.settings.googleAnalyticsId || ''}
+                    onChange={(e) => handleUpdateSettings('googleAnalyticsId', e.target.value.toUpperCase().trim())}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none text-slate-600"
+                  />
+                </div>
+
                 {/* Single response option */}
                 <div className="flex justify-between items-center py-2 px-3 bg-slate-50 border rounded-xl border-slate-150 text-xs">
                   <span className="font-bold text-slate-600">Apenas uma resposta por pessoa?</span>
