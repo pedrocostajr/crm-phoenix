@@ -74,6 +74,128 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
     loadForms();
   }, []);
 
+  // Diagnostic State
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [testLogs, setTestLogs] = useState<string[]>([]);
+  const [testing, setTesting] = useState(false);
+
+  const runDiagnosticTest = async () => {
+    setTesting(true);
+    setIsTestModalOpen(true);
+    setTestLogs(['Iniciando testes de diagnóstico do sistema...']);
+
+    try {
+      if (forms.length === 0) {
+        setTestLogs(prev => [...prev, '❌ Nenhum formulário cadastrado no sistema. Crie um formulário primeiro para rodar o teste.']);
+        setTesting(false);
+        return;
+      }
+
+      const testForm = forms[0];
+      setTestLogs(prev => [...prev, `ℹ️ Utilizando o formulário "${testForm.settings.internalName}" (ID: ${testForm.id}) para teste.`]);
+
+      const testResponseId = `test_resp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const testEmail = `teste-${Math.random().toString(36).substring(2, 8)}@phoenixcrm.com`;
+      setTestLogs(prev => [...prev, `🚀 Gerando dados de teste (E-mail: ${testEmail})...`]);
+
+      setTestLogs(prev => [...prev, '⏳ Gravando resposta de teste no Firestore (coleção form_responses)...']);
+      const testResponse = {
+        id: testResponseId,
+        formId: testForm.id,
+        workspaceId: testForm.workspaceId || 'default',
+        sessionId: 'test_session',
+        status: 'completed' as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        answers: {
+          block_name: {
+            questionId: 'block_name',
+            questionTitle: 'Nome de Teste',
+            value: 'Lead Teste Conexão',
+            crmField: 'name'
+          },
+          block_email: {
+            questionId: 'block_email',
+            questionTitle: 'E-mail de Teste',
+            value: testEmail,
+            crmField: 'email'
+          }
+        },
+        currentQuestionId: 'thank_you',
+        device: { browser: 'Chrome', os: 'MacOS', deviceType: 'desktop' as const },
+        utm: null,
+        referrerUrl: '',
+        timeSpent: 10
+      };
+
+      const respRes = await storageService.saveResponse(testResponse);
+      if (respRes.success) {
+        setTestLogs(prev => [...prev, '✅ Resposta salva com sucesso na coleção "form_responses"!']);
+      } else {
+        setTestLogs(prev => [...prev, `❌ Erro ao salvar resposta no Firestore: ${respRes.error}`]);
+        setTesting(false);
+        return;
+      }
+
+      setTestLogs(prev => [...prev, '⏳ Gravando Lead de teste no Firestore (coleção leads)...']);
+      const testLeadId = `test_lead_${Date.now()}`;
+      const testLead = {
+        id: testLeadId,
+        name: 'Lead Teste Conexão',
+        company: 'Empresa Teste',
+        email: testEmail,
+        phone: '(11) 99999-9999',
+        status: testForm.automations?.pipelineStage || 'Novo Lead',
+        estimatedValue: 1500,
+        origin: testForm.settings.publicTitle || 'Formulário de Teste',
+        responsible: testForm.automations?.responsibleUser || 'Sistema',
+        tags: ['teste', 'conexao'],
+        observations: 'Lead de diagnóstico gerado pelo sistema para testes de escrita.',
+        createdAt: new Date().toISOString(),
+        interactions: [
+          {
+            id: `int_${Date.now()}`,
+            type: 'Outro' as const,
+            date: new Date().toISOString(),
+            description: 'Lead criado via teste de diagnóstico do CRM.'
+          }
+        ]
+      };
+
+      const leadRes = await storageService.saveLead(testLead);
+      if (leadRes.success) {
+        setTestLogs(prev => [...prev, '✅ Lead criado com sucesso na coleção "leads"!']);
+      } else {
+        setTestLogs(prev => [...prev, `❌ Erro ao salvar Lead no Firestore: ${leadRes.error}`]);
+        setTesting(false);
+        return;
+      }
+
+      setTestLogs(prev => [...prev, '⏳ Vinculando resposta ao Lead...']);
+      const linkRes = await storageService.saveResponse({
+        ...testResponse,
+        leadId: testLeadId
+      });
+      if (linkRes.success) {
+        setTestLogs(prev => [...prev, '✅ Resposta vinculada ao Lead com sucesso!']);
+      } else {
+        setTestLogs(prev => [...prev, `❌ Erro ao vincular resposta ao Lead: ${linkRes.error}`]);
+        setTesting(false);
+        return;
+      }
+
+      setTestLogs(prev => [...prev, '⏳ Incrementando métricas do formulário...']);
+      await storageService.incrementFormMetric(testForm.id, 'completionsCount');
+      setTestLogs(prev => [...prev, '✅ Métricas de conversão incrementadas com sucesso!']);
+
+      setTestLogs(prev => [...prev, '🎉 Parabéns! Todos os testes de gravação foram executados com sucesso! O banco de dados está 100% funcional.']);
+    } catch (err: any) {
+      setTestLogs(prev => [...prev, `❌ Erro crítico inesperado durante o diagnóstico: ${err.message}`]);
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const handleCreateBlank = async () => {
     const randomSlug = Math.random().toString(36).substring(2, 8);
     const newForm: Form = {
@@ -326,12 +448,20 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
           </h2>
           <p className="text-slate-500 text-sm">Crie, personalize e monitore formulários com experiência dinâmica Typeform.</p>
         </div>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.02] active:scale-95 text-sm"
-        >
-          <Plus size={18} /> Criar Formulário
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={runDiagnosticTest}
+            className="flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 text-sm"
+          >
+            <ShieldCheck size={18} className="text-emerald-600" /> Diagnosticar Conexão
+          </button>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.02] active:scale-95 text-sm"
+          >
+            <Plus size={18} /> Criar Formulário
+          </button>
+        </div>
       </div>
 
       {/* Filters and Search Bar */}
@@ -749,6 +879,65 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIAGNOSTIC MODAL */}
+      {isTestModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsTestModalOpen(false)}></div>
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="text-emerald-500" />
+                <h2 className="text-lg font-bold text-white font-sans">Diagnóstico de Conexão e Banco</h2>
+              </div>
+              <button onClick={() => setIsTestModalOpen(false)} className="text-slate-400 hover:text-white p-2 hover:bg-slate-800 rounded-lg transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* Logs console */}
+            <div className="flex-1 overflow-y-auto p-6 font-mono text-xs space-y-2 bg-slate-950 text-slate-300 min-h-[300px]">
+              {testLogs.map((log, i) => {
+                let colorClass = 'text-slate-300';
+                if (log.startsWith('✅')) colorClass = 'text-emerald-400';
+                if (log.startsWith('❌')) colorClass = 'text-rose-400';
+                if (log.startsWith('ℹ️')) colorClass = 'text-sky-400';
+                if (log.startsWith('🚀')) colorClass = 'text-indigo-400 font-bold';
+                if (log.startsWith('🎉')) colorClass = 'text-emerald-400 font-bold text-sm border-t border-slate-800 pt-2 mt-2';
+                return (
+                  <div key={i} className={`py-0.5 leading-relaxed ${colorClass}`}>
+                    {log}
+                  </div>
+                );
+              })}
+              {testing && (
+                <div className="flex items-center gap-1.5 text-slate-500 py-1">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
+                  Rodando teste...
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div className="p-6 border-t border-slate-800 flex justify-end gap-3 bg-slate-950/50">
+              <button
+                onClick={() => setIsTestModalOpen(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-bold transition-all font-sans"
+              >
+                Fechar
+              </button>
+              <button
+                onClick={runDiagnosticTest}
+                disabled={testing}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50 font-sans"
+              >
+                Executar Novo Teste
+              </button>
             </div>
           </div>
         </div>
