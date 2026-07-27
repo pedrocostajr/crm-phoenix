@@ -47,16 +47,21 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
       const unsubscribe = onSnapshot(leadsRef, (snapshot) => {
         const allLeads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
 
-        // Sort leads by created date descending
-        allLeads.sort((a, b) => {
-          const dateA = new Date(a.createdAt || a.created_at || 0).getTime();
-          const dateB = new Date(b.createdAt || b.created_at || 0).getTime();
-          return dateB - dateA;
-        });
+        // Helper to safely extract date timestamp from lead object
+        const getLeadTimestamp = (lead: any): number => {
+          const rawDate = lead.createdAt || lead.created_at || lead.updatedAt || lead.updated_at || lead.date;
+          if (!rawDate) return 0;
+          const time = new Date(rawDate).getTime();
+          return isNaN(time) ? 0 : time;
+        };
+
+        // Sort leads strictly by created date descending (newest first)
+        allLeads.sort((a, b) => getLeadTimestamp(b) - getLeadTimestamp(a));
 
         // Convert leads directly into notification items for the bell dropdown
         const generatedNotifs = allLeads.slice(0, 25).map(lead => {
-          const dateObj = new Date(lead.createdAt || lead.created_at || Date.now());
+          const timestamp = getLeadTimestamp(lead);
+          const dateObj = timestamp > 0 ? new Date(timestamp) : new Date();
           const formattedTime = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
           return {
