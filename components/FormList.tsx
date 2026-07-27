@@ -637,11 +637,17 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
 
             // 2. Matching entries in leads collection
             const matchingLeads = allLeads.filter(l => {
+              // If there's only 1 form in the system, all leads belong to this form
+              if (forms.length === 1) return true;
+
               if (l.formId === form.id || (slug && l.formId === slug)) return true;
               const originLower = (l.origin || '').toLowerCase();
               if (publicTitle && originLower.includes(publicTitle)) return true;
               if (internalName && originLower.includes(internalName)) return true;
-              if (slug && l.tags && Array.isArray(l.tags) && l.tags.some((t: string) => t === `form:${slug}` || t === slug)) return true;
+              if (slug && originLower.includes(slug.toLowerCase())) return true;
+              if (originLower.includes('formulário') || originLower.includes('locação') || originLower.includes('captação') || originLower.includes('lead')) return true;
+
+              if (slug && l.tags && Array.isArray(l.tags) && l.tags.some((t: string) => String(t).toLowerCase().includes(slug.toLowerCase()))) return true;
               return false;
             });
 
