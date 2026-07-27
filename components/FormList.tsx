@@ -222,6 +222,19 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
         return;
       }
 
+      setTestLogs(prev => [...prev, '⏳ Lendo notificações do Firestore para verificar leitura...']);
+      try {
+        const notifList = await storageService.getNotifications();
+        setTestLogs(prev => [...prev, `✅ Sucesso! Total de notificações no banco: ${notifList.length}`]);
+        if (notifList.length > 0) {
+          setTestLogs(prev => [...prev, `ℹ️ Última notificação no banco: "${notifList[0].title}" - "${notifList[0].body}"`]);
+        }
+      } catch (readErr: any) {
+        setTestLogs(prev => [...prev, `❌ Erro ao ler notificações: ${readErr.message}`]);
+        setTesting(false);
+        return;
+      }
+
       setTestLogs(prev => [...prev, '🎉 Parabéns! Todos os testes de gravação foram executados com sucesso! O banco de dados está 100% funcional.']);
     } catch (err: any) {
       setTestLogs(prev => [...prev, `❌ Erro crítico inesperado durante o diagnóstico: ${err.message}`]);
