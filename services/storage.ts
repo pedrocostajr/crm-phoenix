@@ -773,10 +773,15 @@ export const storageService = {
     }
   },
 
-  createNotification: async (notif: { title: string; body: string; createdAt: string; read: boolean }): Promise<void> => {
+  createNotification: async (notif: { id?: string; title: string; body: string; createdAt: string; read: boolean }): Promise<void> => {
     try {
-      const cleanData = JSON.parse(JSON.stringify(notif));
-      await addDoc(collection(db, 'notifications'), cleanData);
+      const { id, ...data } = notif;
+      const cleanData = JSON.parse(JSON.stringify(data));
+      if (id) {
+        await setDoc(doc(db, 'notifications', id), cleanData, { merge: true });
+      } else {
+        await addDoc(collection(db, 'notifications'), cleanData);
+      }
     } catch (error) {
       console.error('Error creating notification:', error);
     }

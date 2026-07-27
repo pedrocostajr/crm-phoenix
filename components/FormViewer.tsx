@@ -452,6 +452,24 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
         }
       });
 
+      let leadName = '';
+      let leadEmail = '';
+      let leadPhone = '';
+      let leadCompany = '';
+      let leadEstimatedValue = 0;
+
+      Object.values(mappedAnswers).forEach((ans: any) => {
+        if (ans.crmField === 'name' && ans.value) leadName = String(ans.value);
+        if (ans.crmField === 'email' && ans.value) leadEmail = String(ans.value).trim().toLowerCase();
+        if (ans.crmField === 'phone' && ans.value) leadPhone = String(ans.value).trim();
+        if (ans.crmField === 'company' && ans.value) leadCompany = String(ans.value);
+        if (ans.crmField === 'estimatedValue' && ans.value) leadEstimatedValue = Number(ans.value) || 0;
+      });
+
+      if (!leadName) {
+        leadName = leadEmail ? leadEmail.split('@')[0] : 'Lead s/ Nome';
+      }
+
       const userAgent = window.navigator.userAgent.toLowerCase();
       const deviceType = 
         /ipad|tablet|playbook|silk/.test(userAgent) ? 'tablet' :
@@ -533,26 +551,10 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
         }
 
         // Gather mapped answers to build the Lead
-        let leadName = '';
-        let leadEmail = '';
-        let leadPhone = '';
-        let leadCompany = '';
-        let leadEstimatedValue = 0;
         let leadObservations = `Submissão do formulário: "${form.settings?.publicTitle || 'Formulário'}"\n\nRespostas:\n`;
-
         Object.values(mappedAnswers).forEach((ans: any) => {
           leadObservations += `- **${ans.questionTitle}**: ${Array.isArray(ans.value) ? ans.value.join(', ') : ans.value}\n`;
-
-          if (ans.crmField === 'name' && ans.value) leadName = String(ans.value);
-          if (ans.crmField === 'email' && ans.value) leadEmail = String(ans.value).trim().toLowerCase();
-          if (ans.crmField === 'phone' && ans.value) leadPhone = String(ans.value).trim();
-          if (ans.crmField === 'company' && ans.value) leadCompany = String(ans.value);
-          if (ans.crmField === 'estimatedValue' && ans.value) leadEstimatedValue = Number(ans.value) || 0;
         });
-
-        if (!leadName) {
-          leadName = leadEmail ? leadEmail.split('@')[0] : 'Lead s/ Nome';
-        }
 
         // Search for existing lead to update (deduplication)
         let existingLead: any = null;
@@ -644,13 +646,19 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
           ...completedResponse,
           leadId: leadId || undefined
         });
-        // Save notification to the database client-side
+      }
+
+      // Save notification to the database client-side (runs for both API success and fallback)
+      try {
         await storageService.createNotification({
+          id: responseId,
           title: 'Novo Lead',
           body: `${leadName} preencheu o formulário de "${form.settings?.publicTitle || 'Captação'}".`,
           createdAt: new Date().toISOString(),
           read: false
         });
+      } catch (notifErr) {
+        console.warn('Failed to save client-side notification:', notifErr);
       }
 
       // Increment form completionsCount
