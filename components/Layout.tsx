@@ -41,70 +41,100 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
         }
       }
 
-      const notifRef = collection(db, 'notifications');
+      // Listen directly to the LEADS collection in real-time
+      const leadsRef = collection(db, 'leads');
 
-      const unsubscribe = onSnapshot(notifRef, (snapshot) => {
-        const allNotifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
-        allNotifs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      const unsubscribe = onSnapshot(leadsRef, (snapshot) => {
+        const allLeads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+
+        // Sort leads by created date descending
+        allLeads.sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.created_at || 0).getTime();
+          const dateB = new Date(b.createdAt || b.created_at || 0).getTime();
+          return dateB - dateA;
+        });
+
+        // Convert leads directly into notification items for the bell dropdown
+        const generatedNotifs = allLeads.slice(0, 25).map(lead => {
+          const dateObj = new Date(lead.createdAt || lead.created_at || Date.now());
+          const formattedTime = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+          return {
+            id: lead.id,
+            title: 'Novo Lead',
+            body: `${lead.name || 'Lead'} (${lead.company || lead.origin || 'Captação'}) entrou no CRM.`,
+            time: formattedTime,
+            createdAt: dateObj.toISOString(),
+            lead
+          };
+        });
 
         if (isInitialMount.current) {
           isInitialMount.current = false;
-          setNotifications(allNotifs);
-          setUnreadCount(allNotifs.filter(n => !n.read).length);
+          // Track all existing lead IDs so we don't play chime for old leads on initial page load
+          allLeads.forEach(l => existingLeadIds.current.add(l.id));
+          setNotifications(generatedNotifs);
           return;
         }
 
+        // Detect new leads added in real-time
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
-            const notif = { id: change.doc.id, ...change.doc.data() } as any;
+            const lead = { id: change.doc.id, ...change.doc.data() } as any;
 
-            // Play premium synthetic double-chime notification sound
-            try {
-              const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-              if (AudioCtx) {
-                const ctx = new AudioCtx();
-                
-                // Tone 1 (G5)
-                const osc1 = ctx.createOscillator();
-                const gain1 = ctx.createGain();
-                osc1.type = 'sine';
-                osc1.frequency.setValueAtTime(783.99, ctx.currentTime);
-                gain1.gain.setValueAtTime(0.15, ctx.currentTime);
-                gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-                osc1.connect(gain1);
-                gain1.connect(ctx.destination);
-                osc1.start(ctx.currentTime);
-                osc1.stop(ctx.currentTime + 0.3);
+            // Only trigger chime & popup if this lead ID is new (not seen on initial mount)
+            if (!existingLeadIds.current.has(lead.id)) {
+              existingLeadIds.current.add(lead.id);
 
-                // Tone 2 (C6) - delayed slightly
-                const osc2 = ctx.createOscillator();
-                const gain2 = ctx.createGain();
-                osc2.type = 'sine';
-                osc2.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.1);
-                gain2.gain.setValueAtTime(0.15, ctx.currentTime + 0.1);
-                gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-                osc2.connect(gain2);
-                gain2.connect(ctx.destination);
-                osc2.start(ctx.currentTime + 0.1);
-                osc2.stop(ctx.currentTime + 0.45);
+              // Play premium synthetic double-chime notification sound
+              try {
+                const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+                if (AudioCtx) {
+                  const ctx = new AudioCtx();
+                  
+                  // Tone 1 (G5)
+                  const osc1 = ctx.createOscillator();
+                  const gain1 = ctx.createGain();
+                  osc1.type = 'sine';
+                  osc1.frequency.setValueAtTime(783.99, ctx.currentTime);
+                  gain1.gain.setValueAtTime(0.15, ctx.currentTime);
+                  gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                  osc1.connect(gain1);
+                  gain1.connect(ctx.destination);
+                  osc1.start(ctx.currentTime);
+                  osc1.stop(ctx.currentTime + 0.3);
+
+                  // Tone 2 (C6) - delayed slightly
+                  const osc2 = ctx.createOscillator();
+                  const gain2 = ctx.createGain();
+                  osc2.type = 'sine';
+                  osc2.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.1);
+                  gain2.gain.setValueAtTime(0.15, ctx.currentTime + 0.1);
+                  gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+                  osc2.connect(gain2);
+                  gain2.connect(ctx.destination);
+                  osc2.start(ctx.currentTime + 0.1);
+                  osc2.stop(ctx.currentTime + 0.45);
+                }
+              } catch (soundErr) {
+                console.warn('Synthetic audio play failed:', soundErr);
               }
-            } catch (soundErr) {
-              console.warn('Synthetic audio play failed:', soundErr);
-            }
 
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-              new Notification('🚀 ' + notif.title, {
-                body: notif.body,
-                icon: '/favicon.ico'
-              });
+              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                new Notification('🚀 Novo Lead no CRM!', {
+                  body: `${lead.name || 'Lead'} preencheu o formulário de ${lead.origin || 'Captação'}.`,
+                  icon: '/favicon.ico'
+                });
+              }
+
+              setUnreadCount(prev => prev + 1);
             }
           }
         });
 
-        setNotifications(allNotifs);
-        setUnreadCount(allNotifs.filter(n => !n.read).length);
+        setNotifications(generatedNotifs);
       }, (error) => {
-        console.error('Error listening to notifications collection:', error);
+        console.error('Error listening to leads collection for notifications:', error);
       });
 
       return () => unsubscribe();
