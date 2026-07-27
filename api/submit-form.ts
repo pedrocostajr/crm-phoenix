@@ -9,7 +9,8 @@ import {
   query, 
   where, 
   addDoc, 
-  updateDoc 
+  updateDoc,
+  increment
 } from 'firebase/firestore';
 import crypto from 'crypto';
 
@@ -208,6 +209,12 @@ export default async function handler(req: any, res: any) {
 
       // Link response back to the created/updated lead
       await updateDoc(responseRef, { leadId });
+
+      // Increment form completionsCount on the server
+      await updateDoc(formRef, {
+        completionsCount: increment(1),
+        updatedAt: new Date().toISOString()
+      });
 
       // 3. Dispatch Outgoing Webhooks
       if (form.webhooks && Array.isArray(form.webhooks)) {

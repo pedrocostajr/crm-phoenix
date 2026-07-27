@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -30,6 +30,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const isInitialMount = useRef(true);
+  const existingLeadIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     try {
@@ -39,16 +41,24 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
         }
       }
 
-      const mountTime = new Date().toISOString();
       const leadsRef = collection(db, 'leads');
 
       const unsubscribe = onSnapshot(leadsRef, (snapshot) => {
+        if (isInitialMount.current) {
+          isInitialMount.current = false;
+          const ids = snapshot.docs.map(doc => doc.id);
+          existingLeadIds.current = new Set(ids);
+          return;
+        }
+
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const lead = change.doc.data();
             const leadId = change.doc.id;
 
-            if (lead.created_at && lead.created_at > mountTime) {
+            if (!existingLeadIds.current.has(leadId)) {
+              existingLeadIds.current.add(leadId);
+
               try {
                 const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
                 audio.play();
@@ -63,11 +73,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
                 });
               }
 
+              const leadTime = lead.created_at ? new Date(lead.created_at) : new Date();
               const newNotif = {
                 id: leadId,
                 title: 'Novo Lead',
                 body: `${lead.name} preencheu o formulário de ${lead.origin || 'Captação'}.`,
-                time: new Date(lead.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                time: leadTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
                 read: false
               };
 
