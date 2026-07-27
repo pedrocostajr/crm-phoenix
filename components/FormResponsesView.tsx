@@ -124,7 +124,7 @@ const FormResponsesView: React.FC<FormResponsesViewProps> = ({ formId, onBack })
 
     const utmChartData = Object.entries(utmSources)
       .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
+      .sort((a, b) => (b.value as number) - (a.value as number))
       .slice(0, 5);
 
     // Questions with highest abandonment (where currentQuestionId is set in partials)

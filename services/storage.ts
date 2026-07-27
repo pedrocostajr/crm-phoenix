@@ -708,8 +708,8 @@ export const storageService = {
 
         let finalLeadId = '';
         if (existingLeadId && existingLead) {
-          const updatedLead = {
-            id: existingLeadId,
+          const updatedLead: Lead = {
+            ...existingLead,
             name: existingLead.name || leadName,
             company: existingLead.company || leadCompany,
             email: existingLead.email || leadEmail,
@@ -727,7 +727,7 @@ export const storageService = {
             ? (crypto as any).randomUUID()
             : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
-          const newLead = {
+          const newLead: Lead = {
             id: newLeadId,
             name: leadName,
             company: leadCompany,
@@ -739,6 +739,7 @@ export const storageService = {
             responsible: responsible,
             tags: allTags,
             observations: leadObservations,
+            createdAt: new Date().toISOString(),
             interactions: [newInteraction]
           };
           await storageService.saveLead(newLead);

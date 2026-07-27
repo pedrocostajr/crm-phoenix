@@ -11,7 +11,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { storageService } from '../services/storage';
-import { Form, QuestionBlock, FormResponse, FormResponseValue } from '../types';
+import { Form, QuestionBlock, FormResponse, FormResponseValue, Lead } from '../types';
 
 interface FormViewerProps {
   formSlug: string;
@@ -617,7 +617,7 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
             ? crypto.randomUUID()
             : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
-          const newLead = {
+          const newLead: Lead = {
             id: newLeadId,
             name: leadName,
             company: leadCompany,
@@ -629,6 +629,7 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
             responsible: responsible,
             tags: allTags,
             observations: leadObservations,
+            createdAt: new Date().toISOString(),
             interactions: [newInteraction]
           };
           const lRes = await storageService.saveLead(newLead);
