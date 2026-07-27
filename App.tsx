@@ -3,6 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AuthState, Lead, User, LeadStatus, Interaction } from './types';
 import { storageService } from './services/storage';
 import { INITIAL_ADMINS, DEFAULT_PASSWORD } from './constants';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from './lib/firebase';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import LeadTable from './components/LeadTable';
@@ -98,6 +100,35 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+
+    const leadsRef = collection(db, 'leads');
+    const q = query(leadsRef, orderBy('created_at', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const storedLeads = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name || '',
+          company: data.company || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          status: data.status || 'Novo Lead',
+          estimatedValue: Number(data.estimated_value) || 0,
+          origin: data.origin || '',
+          responsible: data.responsible || '',
+          observations: data.observations || '',
+          createdAt: data.created_at || '',
+          interactions: data.interactions || [],
+          tags: data.tags || []
+        } as Lead;
+      });
+      setLeads(storedLeads);
+    }, (error) => {
+      console.error("Error listening to leads:", error);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Auth Handler
