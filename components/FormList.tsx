@@ -207,6 +207,21 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
       await storageService.incrementFormMetric(testForm.id, 'completionsCount');
       setTestLogs(prev => [...prev, '✅ Métricas de conversão incrementadas com sucesso!']);
 
+      setTestLogs(prev => [...prev, '⏳ Gravando notificação de teste no Firestore (coleção notifications)...']);
+      try {
+        await storageService.createNotification({
+          title: 'Teste de Diagnóstico',
+          body: 'Notificação enviada com sucesso no teste de conexão.',
+          createdAt: new Date().toISOString(),
+          read: false
+        });
+        setTestLogs(prev => [...prev, '✅ Notificação gravada com sucesso!']);
+      } catch (notifErr: any) {
+        setTestLogs(prev => [...prev, `❌ Erro ao salvar notificação: ${notifErr.message}`]);
+        setTesting(false);
+        return;
+      }
+
       setTestLogs(prev => [...prev, '🎉 Parabéns! Todos os testes de gravação foram executados com sucesso! O banco de dados está 100% funcional.']);
     } catch (err: any) {
       setTestLogs(prev => [...prev, `❌ Erro crítico inesperado durante o diagnóstico: ${err.message}`]);
