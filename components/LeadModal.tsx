@@ -40,7 +40,7 @@ const LeadModal: React.FC<LeadModalProps> = ({ lead, users, onClose, onSave }) =
     e.preventDefault();
     onSave({
       ...formData as Lead,
-      id: lead?.id || crypto.randomUUID(),
+      id: lead?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Date.now().toString(36)),
       createdAt: lead?.createdAt || new Date().toISOString(),
       interactions: formData.interactions || [],
     });
@@ -195,6 +195,22 @@ const LeadModal: React.FC<LeadModalProps> = ({ lead, users, onClose, onSave }) =
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="mt-6 space-y-2">
+              <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                <Tag size={14} className="text-blue-500" /> Etiquetas (separadas por vírgula)
+              </label>
+              <input
+                type="text"
+                value={formData.tags ? formData.tags.join(', ') : ''}
+                onChange={(e) => {
+                  const tagsArray = e.target.value.split(',').map(t => t.trim()).filter(Boolean);
+                  setFormData({ ...formData, tags: tagsArray });
+                }}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm"
+                placeholder="Ex: site, urgente, qualificado"
+              />
             </div>
 
             <div className="mt-6 space-y-2">

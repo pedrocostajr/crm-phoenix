@@ -39,7 +39,8 @@ export const storageService = {
           responsible: data.responsible,
           observations: data.observations,
           createdAt: data.created_at,
-          interactions: data.interactions || []
+          interactions: data.interactions || [],
+          tags: data.tags || []
         } as Lead;
       });
     } catch (error) {
@@ -61,7 +62,8 @@ export const storageService = {
         responsible: lead.responsible,
         observations: lead.observations,
         created_at: lead.createdAt || new Date().toISOString(),
-        interactions: lead.interactions
+        interactions: lead.interactions,
+        tags: lead.tags || []
       };
 
       await setDoc(doc(db, 'leads', lead.id), dbLead);
@@ -149,6 +151,7 @@ export const storageService = {
         'Origem': lead.origin,
         'Responsável': lead.responsible,
         'Observações': lead.observations,
+        'Etiquetas': lead.tags?.join(', ') || '',
         'Data Criação': lead.createdAt
       }));
 
@@ -214,12 +217,37 @@ export const storageService = {
         return parseFloat(clean) || 0;
       };
 
+      // Helper to dynamically match column headers case-insensitively and space-insensitively
+      const getRowValue = (row: any, searchKeys: string[]): any => {
+        const rowKeys = Object.keys(row);
+        for (const searchKey of searchKeys) {
+          const cleanSearch = searchKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const match = rowKeys.find(rk => rk.toLowerCase().replace(/[^a-z0-9]/g, '') === cleanSearch);
+          if (match) return row[match];
+        }
+        for (const searchKey of searchKeys) {
+          const cleanSearch = searchKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const match = rowKeys.find(rk => rk.toLowerCase().replace(/[^a-z0-9]/g, '').includes(cleanSearch));
+          if (match) return row[match];
+        }
+        return undefined;
+      };
+
       jsonData.forEach((row: any) => {
-        const name = row['Nome'] || row['Name'] || row['nome'];
-        const email = row['Email'] || row['e-mail'] || row['email'];
+        const name = getRowValue(row, ['nome', 'name', 'cliente', 'lead', 'contato']);
+        const email = getRowValue(row, ['email', 'mail', 'e-mail']);
+        const phone = getRowValue(row, ['telefone', 'phone', 'celular', 'whatsapp', 'tel']);
+        const company = getRowValue(row, ['empresa', 'company', 'organizacao', 'corporacao']) || '';
+        const value = getRowValue(row, ['valor', 'value', 'preco', 'budget', 'estimado']);
+        const origin = getRowValue(row, ['origem', 'origin', 'canal', 'source']) || 'Importação';
+        const responsible = getRowValue(row, ['responsavel', 'responsible', 'dono', 'owner']) || 'Sistema';
+        const observations = getRowValue(row, ['observacoes', 'notes', 'comentarios', 'detalhes', 'obs']) || '';
+        const createdAt = getRowValue(row, ['datacriacao', 'createdat', 'data', 'date']);
+        const tagsStr = getRowValue(row, ['tags', 'etiquetas', 'marcadores']) || '';
+
         if (!name) return;
 
-        let rawStatus = String(row['Status'] || '').toLowerCase().trim();
+        let rawStatus = String(getRowValue(row, ['status', 'estagio', 'etapa']) || '').toLowerCase().trim();
         let status: LeadStatus = 'Novo Lead';
         const statusMap: Record<string, LeadStatus> = {
           'novo_lead': 'Novo Lead', 'novo lead': 'Novo Lead',
@@ -232,25 +260,30 @@ export const storageService = {
         if (statusMap[rawStatus]) {
           status = statusMap[rawStatus];
         } else {
-          const originalParams = String(row['Status'] || '');
+          const originalParams = String(getRowValue(row, ['status', 'estagio', 'etapa']) || '');
           if (['Novo Lead', 'Em Contato', 'Proposta Enviada', 'Negociação', 'Ganho', 'Perdido'].includes(originalParams)) {
             status = originalParams as LeadStatus;
           }
         }
 
+        const tagsArray = typeof tagsStr === 'string' && tagsStr
+          ? tagsStr.split(',').map(t => t.trim()).filter(Boolean)
+          : Array.isArray(tagsStr) ? tagsStr : [];
+
         const lead: Lead = {
-          id: crypto.randomUUID(),
+          id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
           name: String(name),
-          company: String(row['Empresa'] || row['Company'] || ''),
+          company: String(company),
           email: String(email || ''),
-          phone: String(row['Telefone'] || row['Phone'] || ''),
+          phone: String(phone || ''),
           status: status,
-          estimatedValue: parseCurrency(row['Valor Estimado'] || row['Valor'] || row['Value']),
-          origin: String(row['Origem'] || row['Origin'] || 'Importação'),
-          responsible: String(row['Responsável'] || row['Responsible'] || 'Sistema'),
-          observations: String(row['Observações'] || row['Notes'] || ''),
-          createdAt: parseDate(row['Data Criação'] || row['Created At']),
-          interactions: []
+          estimatedValue: parseCurrency(value),
+          origin: String(origin),
+          responsible: String(responsible),
+          observations: String(observations),
+          createdAt: parseDate(createdAt),
+          interactions: [],
+          tags: tagsArray
         };
         newLeads.push(lead);
       });

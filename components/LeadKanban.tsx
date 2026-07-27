@@ -126,6 +126,16 @@ const LeadKanban: React.FC<LeadKanbanProps> = ({ leads, onUpdateStatus, onEditLe
                           <span className="truncate">{lead.company}</span>
                         </div>
 
+                        {lead.tags && lead.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {lead.tags.map(tag => (
+                              <span key={tag} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded text-[9px] font-bold">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
                         <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
                           <div className="flex items-center gap-1.5 font-bold text-blue-600 text-xs">
                             <CircleDollarSign size={12} />

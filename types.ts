@@ -28,6 +28,7 @@ export interface Lead {
   observations: string;
   createdAt: string;
   interactions: Interaction[];
+  tags?: string[];
 }
 
 export interface User {

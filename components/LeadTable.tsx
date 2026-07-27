@@ -166,9 +166,18 @@ const LeadTable: React.FC<LeadTableProps> = ({ leads, onEdit, onDelete, onAdd, o
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
                         <span className="font-bold text-slate-900">{lead.name}</span>
-                        <span className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                        <span className="text-xs text-slate-550 flex items-center gap-1 mt-0.5">
                           <Building2 size={12} /> {lead.company}
                         </span>
+                        {lead.tags && lead.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {lead.tags.map((tag) => (
+                              <span key={tag} className="px-1.5 py-0.5 bg-blue-50 text-blue-605 border border-blue-100 rounded text-[9px] font-bold">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
