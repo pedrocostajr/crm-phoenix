@@ -404,7 +404,7 @@ export const storageService = {
     try {
       const { id, ...data } = stage;
       if (id) {
-        await setDoc(doc(db, 'pipeline_stages', id), data);
+        await setDoc(doc(db, 'pipeline_stages', id), data, { merge: true });
       } else {
         await addDoc(collection(db, 'pipeline_stages'), data);
       }
