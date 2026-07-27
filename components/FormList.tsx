@@ -72,6 +72,8 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
     }
   };
 
+  const [allResponses, setAllResponses] = useState<any[]>([]);
+
   useEffect(() => {
     const formsRef = collection(db, 'forms');
     const q = query(formsRef, orderBy('createdAt', 'desc'));
@@ -90,7 +92,18 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
       loadForms();
     });
 
-    return () => unsubscribe();
+    const responsesRef = collection(db, 'form_responses');
+    const unsubResponses = onSnapshot(responsesRef, (snapshot) => {
+      const resps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAllResponses(resps);
+    }, (error) => {
+      console.error("Error listening to form_responses in FormList:", error);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubResponses();
+    };
   }, []);
 
   // Diagnostic State
@@ -600,8 +613,11 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredForms.map((form) => {
-            const views = form.viewsCount || 0;
-            const completions = form.completionsCount || 0;
+            const formCompletedResponses = allResponses.filter(r => r.formId === form.id && r.status === 'completed').length;
+            const formStartedResponses = allResponses.filter(r => r.formId === form.id).length;
+
+            const views = Math.max(form.viewsCount || 0, formStartedResponses);
+            const completions = Math.max(form.completionsCount || 0, formCompletedResponses);
             const conversion = views > 0 ? (completions / views) * 100 : 0;
             const isMenuOpen = activeMenuId === form.id;
 
