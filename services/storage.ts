@@ -570,11 +570,17 @@ export const storageService = {
   getResponses: async (formId: string): Promise<FormResponse[]> => {
     try {
       const responsesRef = collection(db, 'form_responses');
-      const q = query(responsesRef, where('formId', '==', formId), orderBy('createdAt', 'desc'));
+      const q = query(responsesRef, where('formId', '==', formId));
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => {
+      const responses = querySnapshot.docs.map(doc => {
         const data = doc.data();
         return { id: doc.id, ...data } as FormResponse;
+      });
+      // Sort in-memory to prevent requiring composite index in Firestore
+      return responses.sort((a, b) => {
+        const dateA = a.createdAt || '';
+        const dateB = b.createdAt || '';
+        return dateB.localeCompare(dateA);
       });
     } catch (error) {
       console.error('Error fetching responses:', error);
