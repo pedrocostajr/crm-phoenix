@@ -196,9 +196,11 @@ export default async function handler(req: any, res: any) {
           phone: leadPhone,
           status: stage,
           estimated_value: leadEstimatedValue,
+          estimatedValue: leadEstimatedValue,
           origin: form.settings?.publicTitle || 'Formulário',
           responsible: responsible,
           observations: leadObservations,
+          createdAt: new Date().toISOString(),
           created_at: new Date().toISOString(),
           interactions: [newInteraction]
         };

@@ -102,11 +102,11 @@ const App: React.FC = () => {
     fetchData();
 
     const leadsRef = collection(db, 'leads');
-    const q = query(leadsRef, orderBy('created_at', 'desc'));
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(leadsRef, (snapshot) => {
       const storedLeads = snapshot.docs.map(doc => {
         const data = doc.data();
+        const rawDate = data.createdAt || data.created_at || data.updatedAt || data.updated_at || new Date().toISOString();
         return {
           id: doc.id,
           name: data.name || '',
@@ -114,15 +114,28 @@ const App: React.FC = () => {
           email: data.email || '',
           phone: data.phone || '',
           status: data.status || 'Novo Lead',
-          estimatedValue: Number(data.estimated_value) || 0,
+          estimatedValue: Number(data.estimatedValue || data.estimated_value) || 0,
           origin: data.origin || '',
           responsible: data.responsible || '',
           observations: data.observations || '',
-          createdAt: data.created_at || '',
+          createdAt: rawDate,
           interactions: data.interactions || [],
           tags: data.tags || []
         } as Lead;
       });
+
+      // Sort leads strictly by created date descending (newest lead always fixed at position #1)
+      storedLeads.sort((a, b) => {
+        const parseDate = (d: any) => {
+          if (!d) return 0;
+          if (typeof d === 'number') return d;
+          const str = String(d).trim().replace(' ', 'T');
+          const time = new Date(str).getTime();
+          return isNaN(time) ? 0 : time;
+        };
+        return parseDate(b.createdAt) - parseDate(a.createdAt);
+      });
+
       setLeads(storedLeads);
     }, (error) => {
       console.error("Error listening to leads:", error);

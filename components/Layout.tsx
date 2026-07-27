@@ -47,11 +47,13 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
       const unsubscribe = onSnapshot(leadsRef, (snapshot) => {
         const allLeads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
 
-        // Helper to safely extract date timestamp from lead object
+        // Helper to safely extract date timestamp from lead object (WebKit / Safari compatible)
         const getLeadTimestamp = (lead: any): number => {
           const rawDate = lead.createdAt || lead.created_at || lead.updatedAt || lead.updated_at || lead.date;
           if (!rawDate) return 0;
-          const time = new Date(rawDate).getTime();
+          if (typeof rawDate === 'number') return rawDate;
+          const str = String(rawDate).trim().replace(' ', 'T');
+          const time = new Date(str).getTime();
           return isNaN(time) ? 0 : time;
         };
 
