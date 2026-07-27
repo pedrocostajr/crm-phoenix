@@ -318,6 +318,10 @@ const App: React.FC = () => {
             setEditingLead(lead);
             setIsLeadModalOpen(true);
           }}
+          onAddLead={(status) => {
+            setEditingLead({ status } as any);
+            setIsLeadModalOpen(true);
+          }}
         />
       )}
 
