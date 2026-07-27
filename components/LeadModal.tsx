@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lead, LeadStatus, User, Interaction } from '../types';
 import { X, Save, Building, User as UserIcon, Mail, Phone, Tag, DollarSign, FileText, Globe } from 'lucide-react';
+import { usePipeline } from '../hooks/usePipeline';
 
 
 interface LeadModalProps {
@@ -12,6 +13,7 @@ interface LeadModalProps {
 }
 
 const LeadModal: React.FC<LeadModalProps> = ({ lead, users, onClose, onSave }) => {
+  const { stages } = usePipeline();
   const [formData, setFormData] = useState<Partial<Lead>>({
     name: '',
     company: '',
@@ -146,12 +148,11 @@ const LeadModal: React.FC<LeadModalProps> = ({ lead, users, onClose, onSave }) =
                   onChange={(e) => setFormData({ ...formData, status: e.target.value as LeadStatus })}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer"
                 >
-                  <option value="Novo Lead">Novo Lead</option>
-                  <option value="Em Contato">Em Contato</option>
-                  <option value="Proposta Enviada">Proposta Enviada</option>
-                  <option value="Negociação">Negociação</option>
-                  <option value="Ganho">Ganho</option>
-                  <option value="Perdido">Perdido</option>
+                  {stages.map((stage) => (
+                    <option key={stage.id} value={stage.name}>
+                      {stage.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
