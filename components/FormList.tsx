@@ -73,6 +73,7 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
   };
 
   const [allResponses, setAllResponses] = useState<any[]>([]);
+  const [allLeads, setAllLeads] = useState<any[]>([]);
 
   useEffect(() => {
     const formsRef = collection(db, 'forms');
@@ -100,9 +101,18 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
       console.error("Error listening to form_responses in FormList:", error);
     });
 
+    const leadsRef = collection(db, 'leads');
+    const unsubLeads = onSnapshot(leadsRef, (snapshot) => {
+      const lds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAllLeads(lds);
+    }, (error) => {
+      console.error("Error listening to leads in FormList:", error);
+    });
+
     return () => {
       unsubscribe();
       unsubResponses();
+      unsubLeads();
     };
   }, []);
 
@@ -613,11 +623,35 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredForms.map((form) => {
-            const formCompletedResponses = allResponses.filter(r => r.formId === form.id && r.status === 'completed').length;
-            const formStartedResponses = allResponses.filter(r => r.formId === form.id).length;
+            const slug = form.settings?.slug || '';
+            const publicTitle = (form.settings?.publicTitle || '').toLowerCase();
+            const internalName = (form.settings?.internalName || '').toLowerCase();
 
-            const views = Math.max(form.viewsCount || 0, formStartedResponses);
-            const completions = Math.max(form.completionsCount || 0, formCompletedResponses);
+            // 1. Matching entries in form_responses collection
+            const matchingResponses = allResponses.filter(r => {
+              if (r.status !== 'completed') return false;
+              if (r.formId === form.id) return true;
+              if (slug && (r.formId === slug || r.formSlug === slug)) return true;
+              return false;
+            });
+
+            // 2. Matching entries in leads collection
+            const matchingLeads = allLeads.filter(l => {
+              if (l.formId === form.id || (slug && l.formId === slug)) return true;
+              const originLower = (l.origin || '').toLowerCase();
+              if (publicTitle && originLower.includes(publicTitle)) return true;
+              if (internalName && originLower.includes(internalName)) return true;
+              if (slug && l.tags && Array.isArray(l.tags) && l.tags.some((t: string) => t === `form:${slug}` || t === slug)) return true;
+              return false;
+            });
+
+            // 3. True completion count (max between responses, leads, and static count)
+            const completions = Math.max(matchingResponses.length, matchingLeads.length, form.completionsCount || 0);
+
+            // 4. True views count
+            const allStartedForForm = allResponses.filter(r => r.formId === form.id || (slug && (r.formId === slug || r.formSlug === slug))).length;
+            const views = Math.max(form.viewsCount || 0, completions, allStartedForForm);
+
             const conversion = views > 0 ? (completions / views) * 100 : 0;
             const isMenuOpen = activeMenuId === form.id;
 
