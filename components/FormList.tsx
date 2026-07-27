@@ -35,6 +35,8 @@ import {
 import { storageService } from '../services/storage';
 import { Form, FormSettings, QuestionBlock } from '../types';
 import { FORM_TEMPLATES, FormTemplate } from './formTemplates';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface FormListProps {
   userId: string;
@@ -71,7 +73,24 @@ const FormList: React.FC<FormListProps> = ({ userId, onEditForm, onViewResponses
   };
 
   useEffect(() => {
-    loadForms();
+    const formsRef = collection(db, 'forms');
+    const q = query(formsRef, orderBy('createdAt', 'desc'));
+    
+    setLoading(true);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const storedForms = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { id: doc.id, ...data } as Form;
+      });
+      setForms(storedForms);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error listening to forms:", error);
+      setLoading(false);
+      loadForms();
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Diagnostic State
