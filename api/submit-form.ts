@@ -216,14 +216,14 @@ export default async function handler(req: any, res: any) {
         updatedAt: new Date().toISOString()
       });
 
-      // Save notification to the database using deterministic responseId
-      const notifDocRef = doc(db, 'notifications', responseId);
-      await setDoc(notifDocRef, {
+      // Save notification to the database using a unique notification document
+      const notifCollectionRef = collection(db, 'notifications');
+      await addDoc(notifCollectionRef, {
         title: 'Novo Lead',
         body: `${leadName} preencheu o formulário de "${form.settings?.publicTitle || 'Captação'}".`,
         createdAt: new Date().toISOString(),
         read: false
-      }, { merge: true });
+      });
 
       // 3. Dispatch Outgoing Webhooks
       if (form.webhooks && Array.isArray(form.webhooks)) {

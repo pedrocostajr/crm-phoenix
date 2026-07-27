@@ -651,7 +651,6 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
       // Save notification to the database client-side (runs for both API success and fallback)
       try {
         await storageService.createNotification({
-          id: responseId,
           title: 'Novo Lead',
           body: `${leadName} preencheu o formulário de "${form.settings?.publicTitle || 'Captação'}".`,
           createdAt: new Date().toISOString(),
@@ -659,7 +658,6 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
         });
       } catch (notifErr: any) {
         console.warn('Failed to save client-side notification:', notifErr);
-        alert('DEBUG ERROR: ' + notifErr.message);
       }
 
       // Increment form completionsCount

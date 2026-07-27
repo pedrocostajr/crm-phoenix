@@ -42,14 +42,15 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
       }
 
       const notifRef = collection(db, 'notifications');
-      const q = query(notifRef, orderBy('createdAt', 'desc'));
 
-      const unsubscribe = onSnapshot(q, (snapshot) => {
+      const unsubscribe = onSnapshot(notifRef, (snapshot) => {
+        const allNotifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+        allNotifs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
         if (isInitialMount.current) {
           isInitialMount.current = false;
-          const initialNotifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
-          setNotifications(initialNotifs);
-          setUnreadCount(initialNotifs.filter(n => !n.read).length);
+          setNotifications(allNotifs);
+          setUnreadCount(allNotifs.filter(n => !n.read).length);
           return;
         }
 
@@ -97,19 +98,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
                 icon: '/favicon.ico'
               });
             }
-
-            setNotifications(prev => {
-              if (prev.some(p => p.id === notif.id)) return prev;
-              return [notif, ...prev];
-            });
-            setUnreadCount(prev => prev + 1);
-          } else if (change.type === 'modified') {
-            const notif = { id: change.doc.id, ...change.doc.data() } as any;
-            setNotifications(prev => prev.map(p => p.id === notif.id ? notif : p));
-          } else if (change.type === 'removed') {
-            setNotifications(prev => prev.filter(p => p.id !== change.doc.id));
           }
         });
+
+        setNotifications(allNotifs);
+        setUnreadCount(allNotifs.filter(n => !n.read).length);
       }, (error) => {
         console.error('Error listening to notifications collection:', error);
       });
