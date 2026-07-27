@@ -482,17 +482,158 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
         timeSpent: Math.round((Date.now() - startTimeRef.current) / 1000)
       };
 
-      // Call API Endpoint to safely write Lead & trigger Webhooks
-      const res = await fetch('/api/submit-form', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
+      let leadId = null;
+      let apiSuccess = false;
 
-      if (!res.ok) {
-        throw new Error('API submission failed');
+      try {
+        // Call API Endpoint to safely write Lead & trigger Webhooks
+        const res = await fetch('/api/submit-form', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const apiData = await res.json();
+          leadId = apiData.leadId;
+          apiSuccess = true;
+        }
+      } catch (apiErr) {
+        console.warn('API submission failed or unreachable, using client-side Firestore fallback:', apiErr);
+      }
+
+      if (!apiSuccess) {
+        // Client-side Fallback (resilient client-side save)
+        const completedResponse: FormResponse = {
+          id: responseId,
+          formId: form.id,
+          workspaceId: form.workspaceId || 'default',
+          sessionId: sessionId || 'anonymous',
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          answers: mappedAnswers,
+          currentQuestionId: 'thank_you',
+          device: {
+            browser: getBrowserName(userAgent),
+            os: getOSName(userAgent),
+            deviceType
+          },
+          utm,
+          referrerUrl: document.referrer || '',
+          timeSpent: Math.round((Date.now() - startTimeRef.current) / 1000)
+        };
+
+        // Write the completed response to Firestore client-side
+        await storageService.saveResponse(completedResponse);
+
+        // Gather mapped answers to build the Lead
+        let leadName = '';
+        let leadEmail = '';
+        let leadPhone = '';
+        let leadCompany = '';
+        let leadEstimatedValue = 0;
+        let leadObservations = `Submissão do formulário: "${form.settings?.publicTitle || 'Formulário'}"\n\nRespostas:\n`;
+
+        Object.values(mappedAnswers).forEach((ans: any) => {
+          leadObservations += `- **${ans.questionTitle}**: ${Array.isArray(ans.value) ? ans.value.join(', ') : ans.value}\n`;
+
+          if (ans.crmField === 'name' && ans.value) leadName = String(ans.value);
+          if (ans.crmField === 'email' && ans.value) leadEmail = String(ans.value).trim().toLowerCase();
+          if (ans.crmField === 'phone' && ans.value) leadPhone = String(ans.value).trim();
+          if (ans.crmField === 'company' && ans.value) leadCompany = String(ans.value);
+          if (ans.crmField === 'estimatedValue' && ans.value) leadEstimatedValue = Number(ans.value) || 0;
+        });
+
+        if (!leadName) {
+          leadName = leadEmail ? leadEmail.split('@')[0] : 'Lead s/ Nome';
+        }
+
+        // Search for existing lead to update (deduplication)
+        let existingLead: any = null;
+        let existingLeadId: string | null = null;
+        const allLeads = await storageService.getLeads();
+
+        if (leadEmail) {
+          const match = allLeads.find((l: any) => l.email?.trim().toLowerCase() === leadEmail);
+          if (match) {
+            existingLead = match;
+            existingLeadId = match.id;
+          }
+        }
+
+        if (!existingLeadId && leadPhone) {
+          const match = allLeads.find((l: any) => l.phone?.trim() === leadPhone);
+          if (match) {
+            existingLead = match;
+            existingLeadId = match.id;
+          }
+        }
+
+        const stage = form.automations?.pipelineStage || 'Novo Lead';
+        const responsible = form.automations?.responsibleUser || 'Sistema';
+        const baseTags = form.automations?.addTags || [];
+        const formTag = `form:${form.settings?.slug || form.id}`;
+        const allTags = Array.from(new Set([...baseTags, formTag]));
+
+        const randId = typeof crypto !== 'undefined' && crypto.randomUUID 
+          ? crypto.randomUUID() 
+          : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
+        const newInteraction = {
+          id: randId,
+          type: 'Outro' as const,
+          date: new Date().toISOString(),
+          description: `Submeteu o formulário: ${form.settings?.publicTitle || 'Formulário'}\n${leadObservations}`
+        };
+
+        if (existingLeadId && existingLead) {
+          // Update existing lead client-side
+          const updatedLead = {
+            ...existingLead,
+            name: existingLead.name || leadName,
+            company: existingLead.company || leadCompany,
+            email: existingLead.email || leadEmail,
+            phone: existingLead.phone || leadPhone,
+            estimatedValue: existingLead.estimatedValue || leadEstimatedValue,
+            responsible: existingLead.responsible || responsible,
+            tags: Array.from(new Set([...(existingLead.tags || []), ...allTags])),
+            observations: (existingLead.observations || '') + `\n\n[Atualizado via Formulário] ${new Date().toLocaleDateString('pt-BR')}:\n` + leadObservations,
+            interactions: [...(existingLead.interactions || []), newInteraction]
+          };
+          await storageService.saveLead(updatedLead);
+          leadId = existingLeadId;
+        } else {
+          // Create new lead client-side
+          const newLeadId = typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
+          const newLead = {
+            id: newLeadId,
+            name: leadName,
+            company: leadCompany,
+            email: leadEmail,
+            phone: leadPhone,
+            status: stage,
+            estimatedValue: leadEstimatedValue,
+            origin: form.settings?.publicTitle || 'Formulário',
+            responsible: responsible,
+            tags: allTags,
+            observations: leadObservations,
+            interactions: [newInteraction]
+          };
+          await storageService.saveLead(newLead);
+          leadId = newLeadId;
+        }
+
+        // Link response to lead client-side
+        await storageService.saveResponse({
+          ...completedResponse,
+          leadId: leadId || undefined
+        });
       }
 
       // Increment form completionsCount
