@@ -10,8 +10,11 @@ import {
   Flame,
   Download,
   Upload,
-  ClipboardList
+  ClipboardList,
+  Bell
 } from 'lucide-react';
+import { collection, query, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { storageService } from '../services/storage';
 
 interface LayoutProps {
@@ -24,6 +27,59 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLogout, onOpenWebhookSettings, userName }) => {
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    const mountTime = new Date().toISOString();
+    const leadsRef = collection(db, 'leads');
+
+    const unsubscribe = onSnapshot(leadsRef, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const lead = change.doc.data();
+          const leadId = change.doc.id;
+
+          if (lead.created_at && lead.created_at > mountTime) {
+            try {
+              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+              audio.play();
+            } catch (soundErr) {
+              console.warn('Audio play blocked:', soundErr);
+            }
+
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              new Notification('🚀 Novo Lead no CRM!', {
+                body: `${lead.name} (${lead.company || 'Individual'}) cadastrou-se via ${lead.origin || 'Formulário'}.`,
+                icon: '/favicon.ico'
+              });
+            }
+
+            const newNotif = {
+              id: leadId,
+              title: 'Novo Lead',
+              body: `${lead.name} preencheu o formulário de ${lead.origin || 'Captação'}.`,
+              time: new Date(lead.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              read: false
+            };
+
+            setNotifications(prev => [newNotif, ...prev]);
+            setUnreadCount(prev => prev + 1);
+          }
+        }
+      });
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'leads', label: 'Gestão de Leads', icon: TableIcon },
@@ -123,6 +179,68 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onLo
           <h1 className="text-lg font-semibold text-slate-800 hidden md:block">
             {menuItems.find(i => i.id === activeTab)?.label}
           </h1>
+
+          {/* Real-time Notifications Bell */}
+          <div className="flex items-center gap-4">
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowNotifications(!showNotifications);
+                    setUnreadCount(0);
+                    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                  }}
+                  className={`p-2 hover:bg-slate-50 rounded-xl transition-all relative ${
+                    unreadCount > 0 ? 'text-blue-600 animate-bounce' : 'text-slate-500'
+                  }`}
+                  title="Notificações"
+                >
+                  <Bell size={18} />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></span>
+                  )}
+                </button>
+
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200/80 rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-slate-100 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="px-4 py-2.5 bg-slate-50 flex justify-between items-center border-b border-slate-100">
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Notificações</span>
+                      {notifications.length > 0 && (
+                        <button
+                          onClick={() => setNotifications([])}
+                          className="text-[9px] font-bold text-red-500 hover:underline"
+                        >
+                          Limpar
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-60 overflow-y-auto divide-y divide-slate-50">
+                      {notifications.length > 0 ? (
+                        notifications.map(n => (
+                          <div key={n.id} className="p-3.5 hover:bg-slate-50/50 transition-colors text-left space-y-0.5">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold text-slate-800">{n.title}</span>
+                              <span className="text-[9px] font-bold text-slate-400">{n.time}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 leading-normal font-medium">{n.body}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-6 text-center text-xs text-slate-400 font-medium">Nenhuma notificação nova.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="h-4 w-px bg-slate-200 hidden md:block"></div>
+
+              <div className="flex items-center gap-2 hidden md:flex">
+                <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs">
+                  {userName.charAt(0).toUpperCase()}
+                </div>
+                <span className="text-xs font-bold text-slate-700">{userName}</span>
+              </div>
+          </div>
 
           {/* Mobile Tab Switcher */}
           <div className="flex md:hidden gap-2">
