@@ -657,8 +657,9 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
           createdAt: new Date().toISOString(),
           read: false
         });
-      } catch (notifErr) {
+      } catch (notifErr: any) {
         console.warn('Failed to save client-side notification:', notifErr);
+        alert('DEBUG ERROR: ' + notifErr.message);
       }
 
       // Increment form completionsCount
