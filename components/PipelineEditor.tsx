@@ -253,7 +253,36 @@ const PipelineEditor: React.FC<PipelineEditorProps> = ({ onClose }) => {
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            if (window.confirm('Atenção: deseja realmente restaurar as etapas padrão? Suas colunas customizadas atuais serão excluídas e as 6 etapas originais do CRM serão recriadas.')) {
+                                try {
+                                    for (const stage of stages) {
+                                        await deleteStage(stage.id);
+                                    }
+                                    const defaultStages = [
+                                        { name: 'Novo Lead', color: 'bg-blue-500' },
+                                        { name: 'Em Contato', color: 'bg-yellow-500' },
+                                        { name: 'Proposta Enviada', color: 'bg-purple-500' },
+                                        { name: 'Negociação', color: 'bg-orange-500' },
+                                        { name: 'Ganho', color: 'bg-green-500' },
+                                        { name: 'Perdido', color: 'bg-red-500' }
+                                    ];
+                                    for (const ds of defaultStages) {
+                                        await addStage(ds.name, ds.color);
+                                    }
+                                    alert('Pipeline restaurado com sucesso! Seus leads voltarão a aparecer.');
+                                } catch (err: any) {
+                                    alert('Erro ao restaurar: ' + err.message);
+                                }
+                            }
+                        }}
+                        className="text-xs font-bold text-red-650 hover:text-red-750 bg-red-50 hover:bg-red-100/70 border border-red-200/50 py-2 px-3 rounded-xl transition-all"
+                    >
+                        Restaurar Etapas Padrão
+                    </button>
                     <button
                         onClick={onClose}
                         className="py-2.5 px-6 bg-slate-800 text-white font-bold rounded-xl text-xs hover:bg-slate-900 transition-colors shadow-sm"
