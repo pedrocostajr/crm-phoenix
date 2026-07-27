@@ -129,10 +129,37 @@ const App: React.FC = () => {
         const parseDate = (d: any) => {
           if (!d) return 0;
           if (typeof d === 'number') return d;
-          const str = String(d).trim().replace(' ', 'T');
-          const time = new Date(str).getTime();
+          
+          const str = String(d).trim();
+
+          // Handle Brazilian format DD/MM/YYYY or DD/MM/YYYY HH:mm:ss
+          if (str.includes('/')) {
+            const parts = str.split(' ');
+            const dateParts = parts[0].split('/');
+            if (dateParts.length === 3) {
+              const day = parseInt(dateParts[0], 10);
+              const month = parseInt(dateParts[1], 10) - 1; // 0-indexed month
+              const year = parseInt(dateParts[2], 10);
+              
+              let hours = 0, minutes = 0, seconds = 0;
+              if (parts[1]) {
+                const timeParts = parts[1].split(':');
+                hours = parseInt(timeParts[0] || '0', 10);
+                minutes = parseInt(timeParts[1] || '0', 10);
+                seconds = parseInt(timeParts[2] || '0', 10);
+              }
+              
+              const parsedBR = new Date(year, month, day, hours, minutes, seconds).getTime();
+              if (!isNaN(parsedBR)) return parsedBR;
+            }
+          }
+
+          // Handle ISO or YYYY-MM-DD strings
+          const normalized = str.replace(' ', 'T');
+          const time = new Date(normalized).getTime();
           return isNaN(time) ? 0 : time;
         };
+
         return parseDate(b.createdAt) - parseDate(a.createdAt);
       });
 
