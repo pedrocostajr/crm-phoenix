@@ -10,7 +10,10 @@ import {
   Settings,
   Plus,
   ArrowRight,
-  TrendingUp
+  TrendingUp,
+  Clock,
+  MessageCircle,
+  Phone
 } from 'lucide-react';
 
 interface LeadKanbanProps {
@@ -62,6 +65,63 @@ const LeadKanban: React.FC<LeadKanbanProps> = ({ leads, onUpdateStatus, onEditLe
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val);
   };
 
+  const formatLeadDate = (lead: Lead) => {
+    const rawDate = lead.createdAt || lead.created_at || (lead as any).date;
+    if (!rawDate) return null;
+    
+    let dateObj: Date;
+    const str = String(rawDate).trim();
+    if (str.includes('/')) {
+      const parts = str.split(' ');
+      const dateParts = parts[0].split('/');
+      if (dateParts.length === 3) {
+        const day = parseInt(dateParts[0], 10);
+        const month = parseInt(dateParts[1], 10) - 1;
+        const year = parseInt(dateParts[2], 10);
+        let hours = 0, minutes = 0;
+        if (parts[1]) {
+          const timeParts = parts[1].split(':');
+          hours = parseInt(timeParts[0] || '0', 10);
+          minutes = parseInt(timeParts[1] || '0', 10);
+        }
+        dateObj = new Date(year, month, day, hours, minutes);
+      } else {
+        dateObj = new Date(str);
+      }
+    } else {
+      dateObj = new Date(str.replace(' ', 'T'));
+    }
+    
+    if (isNaN(dateObj.getTime())) return null;
+
+    const today = new Date();
+    const isToday = today.toDateString() === dateObj.toDateString();
+    const dateStr = isToday ? 'Hoje' : dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    const timeStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    return { dateStr, timeStr, isToday };
+  };
+
+  const handleWhatsAppClick = (e: React.MouseEvent, lead: Lead) => {
+    e.stopPropagation();
+    if (!lead.phone) {
+      alert('Este lead não possui número de telefone cadastrado.');
+      return;
+    }
+    let cleanPhone = lead.phone.replace(/\D/g, '');
+    if (!cleanPhone) {
+      alert('Número de telefone inválido.');
+      return;
+    }
+    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+      cleanPhone = '55' + cleanPhone;
+    }
+    
+    const message = encodeURIComponent(`Olá ${lead.name || ''}, tudo bem? Vi seu cadastro em nosso sistema e gostaria de conversar!`);
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${message}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
   if (loading) {
     return (
       <div className="flex gap-6 overflow-x-auto pb-6 h-full">
@@ -72,7 +132,6 @@ const LeadKanban: React.FC<LeadKanbanProps> = ({ leads, onUpdateStatus, onEditLe
     );
   }
 
-  // Calculate total pipeline metrics
   const totalValue = leads.reduce((acc, l) => acc + (l.estimatedValue || 0), 0);
   const totalCount = leads.length;
 
@@ -118,7 +177,6 @@ const LeadKanban: React.FC<LeadKanbanProps> = ({ leads, onUpdateStatus, onEditLe
             const columnLeads = getLeadsByStatus(stage.name);
             const columnValue = columnLeads.reduce((acc, l) => acc + (l.estimatedValue || 0), 0);
             const colorClass = stage.color || 'bg-slate-500';
-            const borderColClass = `border-${colorClass.replace('bg-', '')}`;
             const isHovered = draggedOverStageId === stage.id;
 
             return (
@@ -161,62 +219,91 @@ const LeadKanban: React.FC<LeadKanbanProps> = ({ leads, onUpdateStatus, onEditLe
 
                 {/* Column Cards list */}
                 <div className="flex-1 space-y-3 max-h-[68vh] overflow-y-auto pr-1 select-none">
-                  {columnLeads.map((lead) => (
-                    <div
-                      key={lead.id}
-                      draggable
-                      onDragStart={(e) => onDragStart(e, lead.id)}
-                      onClick={() => onEditLead(lead)}
-                      className={`
-                        bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm cursor-grab active:cursor-grabbing 
-                        hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group relative overflow-hidden
-                        ${draggedLeadId === lead.id ? 'opacity-30 grayscale scale-95' : 'opacity-100'}
-                      `}
-                      style={{ borderTop: `4px solid` }}
-                      // Dynamically resolves color for inline style fallback if tailwind border- color isn't loaded
-                      className-temp={borderColClass} 
-                    >
-                      {/* Visual top bar coder fallback using tailwind border name */}
-                      <div className={`absolute top-0 left-0 right-0 h-1 ${colorClass}`}></div>
+                  {columnLeads.map((lead) => {
+                    const leadDate = formatLeadDate(lead);
+                    return (
+                      <div
+                        key={lead.id}
+                        draggable
+                        onDragStart={(e) => onDragStart(e, lead.id)}
+                        onClick={() => onEditLead(lead)}
+                        className={`
+                          bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm cursor-grab active:cursor-grabbing 
+                          hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group relative overflow-hidden
+                          ${draggedLeadId === lead.id ? 'opacity-30 grayscale scale-95' : 'opacity-100'}
+                        `}
+                      >
+                        {/* Visual top color bar */}
+                        <div className={`absolute top-0 left-0 right-0 h-1 ${colorClass}`}></div>
 
-                      <div className="flex justify-between items-start mb-2 mt-1">
-                        <h4 className="font-bold text-slate-800 text-sm line-clamp-1 group-hover:text-blue-600 transition-colors" title={lead.name}>
-                          {lead.name}
-                        </h4>
-                        <button className="text-slate-300 hover:text-slate-500 transition-colors opacity-0 group-hover:opacity-100">
-                          <MoreVertical size={14} />
-                        </button>
-                      </div>
-
-                      <div className="space-y-2.5">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                          <Building2 size={12} className="text-slate-400" />
-                          <span className="truncate">{lead.company || 'Empresa não informada'}</span>
+                        <div className="flex justify-between items-start mb-2 mt-1">
+                          <h4 className="font-bold text-slate-800 text-sm line-clamp-1 group-hover:text-blue-600 transition-colors" title={lead.name}>
+                            {lead.name}
+                          </h4>
+                          <button className="text-slate-300 hover:text-slate-500 transition-colors opacity-0 group-hover:opacity-100">
+                            <MoreVertical size={14} />
+                          </button>
                         </div>
 
-                        {lead.tags && lead.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {lead.tags.map(tag => (
-                              <span key={tag} className="px-1.5 py-0.5 bg-slate-50 text-slate-650 border border-slate-200/60 rounded text-[9px] font-bold">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium truncate">
+                              <Building2 size={12} className="text-slate-400 shrink-0" />
+                              <span className="truncate">{lead.company || 'Empresa não informada'}</span>
+                            </div>
 
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
-                          <div className="flex items-center gap-1 font-bold text-blue-600 text-xs">
-                            <CircleDollarSign size={12} className="text-blue-500" />
-                            {formatCurrency(lead.estimatedValue)}
+                            {/* Registration Date & Time Badge */}
+                            {leadDate && (
+                              <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border shrink-0 ${
+                                leadDate.isToday
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200/80'
+                                  : 'bg-slate-50 text-slate-500 border-slate-200/60'
+                              }`}>
+                                <Clock size={10} className={leadDate.isToday ? 'text-amber-500' : 'text-slate-400'} />
+                                <span>{leadDate.dateStr} às {leadDate.timeStr}</span>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold bg-slate-50 border border-slate-100 rounded-lg px-2 py-0.5">
-                            <User size={10} className="text-slate-350" />
-                            <span>{lead.responsible ? lead.responsible.split(' ')[0] : 'S/R'}</span>
+
+                          {lead.tags && lead.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {lead.tags.map(tag => (
+                                <span key={tag} className="px-1.5 py-0.5 bg-slate-50 text-slate-650 border border-slate-200/60 rounded text-[9px] font-bold">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50 gap-2">
+                            <div className="flex items-center gap-1 font-bold text-blue-600 text-xs shrink-0">
+                              <CircleDollarSign size={12} className="text-blue-500" />
+                              {formatCurrency(lead.estimatedValue)}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {/* WhatsApp Direct Action Button */}
+                              {lead.phone && (
+                                <button
+                                  onClick={(e) => handleWhatsAppClick(e, lead)}
+                                  className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] rounded-lg shadow-sm shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95 shrink-0"
+                                  title={`Chamar ${lead.name} no WhatsApp (${lead.phone})`}
+                                >
+                                  <MessageCircle size={12} />
+                                  <span>WhatsApp</span>
+                                </button>
+                              )}
+
+                              <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold bg-slate-50 border border-slate-100 rounded-lg px-2 py-0.5 shrink-0">
+                                <User size={10} className="text-slate-350" />
+                                <span>{lead.responsible ? lead.responsible.split(' ')[0] : 'S/R'}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   
                   {columnLeads.length === 0 && (
                     <div className="h-32 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-1 hover:bg-white/40 cursor-pointer transition-colors" onClick={() => onAddLead?.(stage.name)}>
