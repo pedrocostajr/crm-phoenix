@@ -93,6 +93,8 @@ export interface QuestionBlock {
     durationMinutes?: number;
     availableHours?: string[];
     availableDays?: number[]; // 0 = Sun, 1 = Mon, ..., 6 = Sat
+    whatsappNumber?: string;
+    whatsappMessage?: string;
   };
 }
 

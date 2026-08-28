@@ -22,10 +22,11 @@ interface FormViewerProps {
 
 const ScheduleWidget: React.FC<{
   block: QuestionBlock;
+  formId: string;
   primaryColor: string;
   value: any;
   onChange: (val: string) => void;
-}> = ({ block, primaryColor, value, onChange }) => {
+}> = ({ block, formId, primaryColor, value, onChange }) => {
   const meetingTitle = block.scheduleConfig?.meetingTitle || 'Bate papo sobre Tráfego Pago';
   const duration = block.scheduleConfig?.durationMinutes || 60;
   const availableHours = block.scheduleConfig?.availableHours || ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
@@ -37,6 +38,16 @@ const ScheduleWidget: React.FC<{
     return d;
   });
   const [selectedTime, setSelectedTime] = useState<string | null>('17:00');
+  const [bookedSlots, setBookedSlots] = useState<{ slotId: string; date: string; time: string }[]>([]);
+
+  useEffect(() => {
+    const fetchSlots = async () => {
+      if (!formId) return;
+      const slots = await storageService.getBookedSlots(formId);
+      setBookedSlots(slots);
+    };
+    fetchSlots();
+  }, [formId]);
 
   const year = currentMonthDate.getFullYear();
   const month = currentMonthDate.getMonth();
@@ -68,6 +79,17 @@ const ScheduleWidget: React.FC<{
   const formatSelection = (date: Date, time: string) => {
     const dayStr = date.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     return `${dayStr} às ${time} (${meetingTitle} • ${duration} minutos)`;
+  };
+
+  const isSlotBooked = (date: Date | null, timeStr: string) => {
+    if (!date) return false;
+    const dateKey = date.toLocaleDateString('pt-BR');
+    const isoKey = date.toISOString().split('T')[0];
+    return bookedSlots.some(bs => {
+      const matchDate = bs.date.includes(dateKey) || bs.date.includes(isoKey);
+      const matchTime = bs.time.includes(timeStr);
+      return matchDate && matchTime;
+    });
   };
 
   const handleSelectDay = (day: number) => {
@@ -185,6 +207,22 @@ const ScheduleWidget: React.FC<{
           <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
             {availableHours.map((timeStr) => {
               const isSelectedTime = selectedTime === timeStr;
+              const isBooked = isSlotBooked(selectedDate, timeStr);
+
+              if (isBooked) {
+                return (
+                  <button
+                    key={timeStr}
+                    type="button"
+                    disabled
+                    className="py-2.5 px-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-350 border border-slate-200 line-through cursor-not-allowed text-center opacity-50 select-none"
+                    title="Horário já reservado por outro participante"
+                  >
+                    {timeStr} (Reservado)
+                  </button>
+                );
+              }
+
               return (
                 <button
                   key={timeStr}
@@ -903,10 +941,45 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
         }
       }
 
+      // Save booked slot to Firestore if a schedule block was answered
+      const scheduleBlock = form.blocks.find(b => b.type === 'schedule');
+      if (scheduleBlock && finalAnswers[scheduleBlock.id]) {
+        const scheduleVal = String(finalAnswers[scheduleBlock.id]);
+        try {
+          await storageService.saveBookedSlot({
+            formId: form.id,
+            date: scheduleVal,
+            time: scheduleVal,
+            leadName,
+            leadEmail
+          });
+        } catch (slotErr) {
+          console.warn('Could not save booked slot:', slotErr);
+        }
+      }
+
       setSubmitted(true);
 
-      // Handle redirect if configured
-      if (form.settings.redirectUrl) {
+      // Check WhatsApp Redirect or Standard Redirect
+      const whatsappNum = scheduleBlock?.scheduleConfig?.whatsappNumber;
+      const customMsg = scheduleBlock?.scheduleConfig?.whatsappMessage;
+
+      if (whatsappNum) {
+        let cleanNum = whatsappNum.replace(/\D/g, '');
+        if (cleanNum.length === 10 || cleanNum.length === 11) cleanNum = '55' + cleanNum;
+
+        const bookedInfo = scheduleBlock ? (finalAnswers[scheduleBlock.id] || '') : '';
+        const defaultMsg = `Olá! Acabei de me cadastrar no formulário e agendar nossa reunião: ${bookedInfo}`;
+        const msgToUse = customMsg 
+          ? customMsg.replace('{data}', bookedInfo).replace('{horario}', bookedInfo)
+          : defaultMsg;
+
+        const waUrl = `https://wa.me/${cleanNum}?text=${encodeURIComponent(msgToUse)}`;
+
+        setTimeout(() => {
+          window.location.href = waUrl;
+        }, 1200);
+      } else if (form.settings.redirectUrl) {
         setTimeout(() => {
           window.location.href = form.settings.redirectUrl!;
         }, 1500);
@@ -1480,6 +1553,7 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
               {activeBlock.type === 'schedule' && (
                 <ScheduleWidget
                   block={activeBlock}
+                  formId={form.id}
                   primaryColor={form.theme.primaryColor}
                   value={answers[activeBlock.id]}
                   onChange={(val) => handleValueChange(val)}

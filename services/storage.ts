@@ -796,5 +796,33 @@ export const storageService = {
     } catch (error) {
       console.error('Error marking notifications as read:', error);
     }
+  },
+
+  getBookedSlots: async (formId: string): Promise<{ slotId: string; date: string; time: string }[]> => {
+    try {
+      const q = query(collection(db, 'booked_slots'), where('formId', '==', formId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { slotId: doc.id, date: data.date, time: data.time };
+      });
+    } catch (error) {
+      console.error('Error fetching booked slots:', error);
+      return [];
+    }
+  },
+
+  saveBookedSlot: async (slot: { formId: string; date: string; time: string; leadName?: string; leadEmail?: string }): Promise<boolean> => {
+    try {
+      const slotId = `${slot.formId}_${slot.date.replace(/[\/\s]/g, '-')}_${slot.time.replace(':', '')}`;
+      await setDoc(doc(db, 'booked_slots', slotId), {
+        ...slot,
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+      return true;
+    } catch (error) {
+      console.error('Error saving booked slot:', error);
+      return false;
+    }
   }
 };

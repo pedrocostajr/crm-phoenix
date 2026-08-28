@@ -1023,6 +1023,50 @@ const FormEditor: React.FC<FormEditorProps> = ({ formId, onBack }) => {
                         <option value={90}>90 minutos (1h 30m)</option>
                       </select>
                     </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Horários Disponíveis (separados por vírgula)</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 09:00, 10:00, 11:00, 14:00, 15:00, 16:00, 17:00"
+                        value={(activeBlock.scheduleConfig?.availableHours || ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00']).join(', ')}
+                        onChange={(e) => {
+                          const hoursArr = e.target.value.split(',').map(h => h.trim()).filter(Boolean);
+                          handleUpdateBlock(activeBlock.id, {
+                            scheduleConfig: { ...(activeBlock.scheduleConfig || {}), availableHours: hoursArr }
+                          });
+                        }}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none text-slate-800"
+                      />
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <label className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
+                        📱 WhatsApp para Redirecionamento Final
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 5511999999999 (DDD + Número)"
+                        value={activeBlock.scheduleConfig?.whatsappNumber || ''}
+                        onChange={(e) => handleUpdateBlock(activeBlock.id, {
+                          scheduleConfig: { ...(activeBlock.scheduleConfig || {}), whatsappNumber: e.target.value.replace(/\D/g, '') }
+                        })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none font-mono text-slate-800"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mensagem do WhatsApp</label>
+                      <textarea
+                        rows={2}
+                        placeholder="Ex: Olá! Acabei de agendar nossa reunião..."
+                        value={activeBlock.scheduleConfig?.whatsappMessage || ''}
+                        onChange={(e) => handleUpdateBlock(activeBlock.id, {
+                          scheduleConfig: { ...(activeBlock.scheduleConfig || {}), whatsappMessage: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none text-slate-800 resize-none font-medium"
+                      />
+                    </div>
                   </div>
                 )}
 
