@@ -202,10 +202,10 @@ const AppointmentsView: React.FC<AppointmentsViewProps> = ({ leads }) => {
 
         {/* Action Button */}
         <button
-          onClick={fetchAppointments}
-          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all self-start md:self-auto"
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all self-start md:self-auto flex items-center gap-1"
         >
-          🔄 Atualizar Lista
+          <span>🔄 Atualizar</span>
         </button>
       </div>
 
