@@ -40,6 +40,9 @@ interface AppointmentItem {
   createdAt: string;
 }
 
+const safeStr = (val: any) => String(val || '').trim();
+const safeLower = (val: any) => String(val || '').trim().toLowerCase();
+
 const AppointmentsView: React.FC<AppointmentsViewProps> = ({ leads }) => {
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,64 +53,83 @@ const AppointmentsView: React.FC<AppointmentsViewProps> = ({ leads }) => {
   useEffect(() => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'booked_slots'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'booked_slots'));
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        const slotsDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const items: AppointmentItem[] = [];
+        try {
+          const slotsDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const items: AppointmentItem[] = [];
 
-        slotsDocs.forEach((slot: any) => {
-          const matchingLead = leads.find(l => 
-            slot.leadEmail && l.email.toLowerCase() === String(slot.leadEmail).toLowerCase()
-          ) || leads.find(l => slot.leadName && l.name.toLowerCase() === String(slot.leadName).toLowerCase())
-          || leads.find(l => slot.leadPhone && l.phone && l.phone.replace(/\D/g, '') === String(slot.leadPhone).replace(/\D/g, ''));
+          slotsDocs.forEach((slot: any) => {
+            const slotEmail = safeLower(slot.leadEmail);
+            const slotName = safeLower(slot.leadName);
+            const slotPhone = safeStr(slot.leadPhone).replace(/\D/g, '');
 
-          let displayName = slot.leadName;
-          if (!displayName || displayName === 'Lead sem nome' || displayName === 'Lead s/ Nome') {
-            displayName = matchingLead?.name || (slot.leadEmail ? slot.leadEmail.split('@')[0] : 'Lead sem nome');
-          }
+            const matchingLead = (leads || []).find(l => {
+              if (!l) return false;
+              const lEmail = safeLower(l.email);
+              if (slotEmail && lEmail && slotEmail === lEmail) return true;
+              const lName = safeLower(l.name);
+              if (slotName && lName && (slotName === lName || slotName.includes(lName) || lName.includes(slotName))) return true;
+              const lPhone = safeStr(l.phone).replace(/\D/g, '');
+              if (slotPhone && lPhone && slotPhone === lPhone) return true;
+              return false;
+            });
 
-          items.push({
-            id: slot.id,
-            formId: slot.formId || '',
-            leadId: matchingLead?.id || '',
-            leadName: displayName,
-            leadEmail: slot.leadEmail || matchingLead?.email || 'N/A',
-            leadPhone: slot.leadPhone || matchingLead?.phone || '',
-            meetingTitle: 'Reunião 60 min',
-            dateStr: slot.date || '',
-            timeStr: slot.time || '',
-            fullDateText: slot.date || slot.time || '',
-            status: slot.status || 'Agendado',
-            createdAt: slot.createdAt || new Date().toISOString()
-          });
-        });
-
-        // Also check leads' interactions for meetings
-        leads.forEach(lead => {
-          const meetingInteractions = (lead.interactions || []).filter(i => i.type === 'Reunião');
-          meetingInteractions.forEach(mi => {
-            const exists = items.some(it => it.leadId === lead.id || (it.leadEmail && it.leadEmail === lead.email));
-            if (!exists) {
-              items.push({
-                id: mi.id,
-                leadId: lead.id,
-                leadName: lead.name || 'Lead sem nome',
-                leadEmail: lead.email || 'N/A',
-                leadPhone: lead.phone || '',
-                meetingTitle: 'Reunião Agendada',
-                dateStr: mi.date,
-                timeStr: '',
-                fullDateText: mi.description,
-                status: 'Agendado',
-                createdAt: mi.date
-              });
+            let displayName = safeStr(slot.leadName);
+            if (!displayName || displayName === 'Lead sem nome' || displayName === 'Lead s/ Nome') {
+              displayName = matchingLead?.name || (slotEmail ? slotEmail.split('@')[0] : 'Lead sem nome');
             }
-          });
-        });
 
-        items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setAppointments(items);
-        setLoading(false);
+            items.push({
+              id: slot.id,
+              formId: slot.formId || '',
+              leadId: matchingLead?.id || '',
+              leadName: displayName,
+              leadEmail: slot.leadEmail || matchingLead?.email || 'N/A',
+              leadPhone: slot.leadPhone || matchingLead?.phone || '',
+              meetingTitle: 'Reunião 60 min',
+              dateStr: slot.date || '',
+              timeStr: slot.time || '',
+              fullDateText: slot.date || slot.time || '',
+              status: slot.status || 'Agendado',
+              createdAt: slot.createdAt || new Date().toISOString()
+            });
+          });
+
+          // Also check leads' interactions for meetings
+          (leads || []).forEach(lead => {
+            if (!lead) return;
+            const meetingInteractions = (lead.interactions || []).filter(i => i && i.type === 'Reunião');
+            meetingInteractions.forEach(mi => {
+              const exists = items.some(it => 
+                (it.leadId && it.leadId === lead.id) || 
+                (safeLower(it.leadEmail) && safeLower(it.leadEmail) === safeLower(lead.email))
+              );
+              if (!exists) {
+                items.push({
+                  id: mi.id,
+                  leadId: lead.id,
+                  leadName: lead.name || 'Lead sem nome',
+                  leadEmail: lead.email || 'N/A',
+                  leadPhone: lead.phone || '',
+                  meetingTitle: 'Reunião Agendada',
+                  dateStr: mi.date || '',
+                  timeStr: '',
+                  fullDateText: mi.description || 'Reunião agendada',
+                  status: 'Agendado',
+                  createdAt: mi.date || new Date().toISOString()
+                });
+              }
+            });
+          });
+
+          items.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          setAppointments(items);
+        } catch (innerErr) {
+          console.error('Error processing booked_slots snapshot:', innerErr);
+        } finally {
+          setLoading(false);
+        }
       }, (err) => {
         console.error('Error listening to booked_slots:', err);
         setLoading(false);
@@ -136,11 +158,13 @@ const AppointmentsView: React.FC<AppointmentsViewProps> = ({ leads }) => {
 
   // Filtered List
   const filtered = appointments.filter(app => {
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch = 
-      app.leadName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.leadEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.leadPhone.includes(searchQuery) ||
-      app.fullDateText.toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      safeLower(app.leadName).includes(q) ||
+      safeLower(app.leadEmail).includes(q) ||
+      safeStr(app.leadPhone).includes(q) ||
+      safeLower(app.fullDateText).includes(q);
 
     const matchesStatus = statusFilter === 'todos' || app.status === statusFilter;
 
