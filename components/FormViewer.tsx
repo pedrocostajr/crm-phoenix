@@ -149,11 +149,13 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
           fbq('track', 'PageView');
         `;
         window.document.head.appendChild(fbScript);
+        console.log(`✅ [Meta Pixel] Inicializado e PageView enviado (Pixel ID: ${pixelId})`);
       } else {
         try {
           (window as any).fbq?.('track', 'PageView');
+          console.log(`✅ [Meta Pixel] PageView reenviado (Pixel ID: ${pixelId})`);
         } catch (e) {
-          console.error(e);
+          console.error('⚠️ [Meta Pixel Error]:', e);
         }
       }
     }
@@ -670,12 +672,14 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
       // Track conversion events on successful form submit
       if (form.settings.metaPixelId) {
         try {
-          (window as any).fbq?.('track', 'Lead', {
-            content_name: form.settings.internalName,
+          const leadPayload = {
+            content_name: form.settings.internalName || form.settings.publicTitle,
             status: 'completed'
-          });
+          };
+          (window as any).fbq?.('track', 'Lead', leadPayload);
+          console.log('🎯 [Meta Pixel] Evento "Lead" disparado com sucesso para a Meta:', leadPayload);
         } catch (fbError) {
-          console.warn('Meta Pixel Lead tracking failed:', fbError);
+          console.warn('⚠️ [Meta Pixel Error] Lead tracking failed:', fbError);
         }
       }
 
