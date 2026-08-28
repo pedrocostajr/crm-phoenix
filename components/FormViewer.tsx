@@ -30,6 +30,7 @@ const ScheduleWidget: React.FC<{
   const meetingTitle = block.scheduleConfig?.meetingTitle || 'Bate papo sobre Tráfego Pago';
   const duration = block.scheduleConfig?.durationMinutes || 60;
   const availableHours = block.scheduleConfig?.availableHours || ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
+  const availableDays = block.scheduleConfig?.availableDays || [1, 2, 3, 4, 5];
 
   const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => {
@@ -207,6 +208,23 @@ const ScheduleWidget: React.FC<{
               if (dayNum === null) {
                 return <div key={`empty_${idx}`} className="h-9"></div>;
               }
+              const dayOfWeek = new Date(year, month, dayNum).getDay();
+              const isDayAvailable = availableDays.includes(dayOfWeek);
+
+              if (!isDayAvailable) {
+                return (
+                  <button
+                    key={`day_${dayNum}`}
+                    type="button"
+                    disabled
+                    className="h-9 w-9 mx-auto rounded-full font-medium text-xs flex items-center justify-center text-slate-300 bg-slate-100/50 cursor-not-allowed select-none opacity-40"
+                    title="Dia indisponível para agendamento"
+                  >
+                    {dayNum}
+                  </button>
+                );
+              }
+
               const isSelected = isSameDay(selectedDate, dayNum);
               return (
                 <button

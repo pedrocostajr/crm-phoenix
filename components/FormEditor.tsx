@@ -1040,6 +1040,52 @@ const FormEditor: React.FC<FormEditorProps> = ({ formId, onBack }) => {
                       />
                     </div>
 
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Dias Liberados para Agendamento
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5 pt-1">
+                        {[
+                          { id: 1, label: 'Segunda-feira' },
+                          { id: 2, label: 'Terça-feira' },
+                          { id: 3, label: 'Quarta-feira' },
+                          { id: 4, label: 'Quinta-feira' },
+                          { id: 5, label: 'Sexta-feira' },
+                          { id: 6, label: 'Sábado' },
+                          { id: 0, label: 'Domingo' }
+                        ].map((d) => {
+                          const currentDays = activeBlock.scheduleConfig?.availableDays || [1, 2, 3, 4, 5];
+                          const isChecked = currentDays.includes(d.id);
+                          return (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => {
+                                const nextDays = isChecked 
+                                  ? currentDays.filter(day => day !== d.id)
+                                  : [...currentDays, d.id];
+                                handleUpdateBlock(activeBlock.id, {
+                                  scheduleConfig: { ...(activeBlock.scheduleConfig || {}), availableDays: nextDays }
+                                });
+                              }}
+                              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all border flex items-center justify-between cursor-pointer ${
+                                isChecked 
+                                  ? 'bg-orange-50 border-orange-300 text-orange-700 shadow-xs' 
+                                  : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60 hover:opacity-100'
+                              }`}
+                            >
+                              <span>{d.label}</span>
+                              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
+                                isChecked ? 'bg-orange-500 text-white font-black' : 'bg-slate-200 text-transparent'
+                              }`}>
+                                ✓
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     <div className="space-y-2 pt-2 border-t border-slate-100">
                       <label className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
                         📱 WhatsApp para Redirecionamento Final
