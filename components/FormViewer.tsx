@@ -415,8 +415,8 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
 
     setHistoryIdx(prev => [...prev, currentIdx]);
 
-    if (nextIdx >= form.blocks.length) {
-      // Completed!
+    if (nextIdx >= form.blocks.length || (form.blocks[nextIdx] && form.blocks[nextIdx].type === 'thank_you')) {
+      // Completed! Submit form, save lead and fire Meta Pixel Lead event
       await triggerFinalSubmit(answers);
     } else {
       setCurrentIdx(nextIdx);
