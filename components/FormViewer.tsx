@@ -81,14 +81,45 @@ const ScheduleWidget: React.FC<{
     return `${dayStr} às ${time} (${meetingTitle} • ${duration} minutos)`;
   };
 
+  const getIsoDateKey = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   const isSlotBooked = (date: Date | null, timeStr: string) => {
     if (!date) return false;
-    const dateKey = date.toLocaleDateString('pt-BR');
-    const isoKey = date.toISOString().split('T')[0];
+    const targetIsoKey = getIsoDateKey(date);
+    const targetDayNum = date.getDate();
+    const dayPadded = targetDayNum < 10 ? `0${targetDayNum}` : `${targetDayNum}`;
+    const targetMonthName = monthNames[date.getMonth()].toLowerCase();
+    const monthPadded = date.getMonth() + 1 < 10 ? `0${date.getMonth() + 1}` : `${date.getMonth() + 1}`;
+
     return bookedSlots.some(bs => {
-      const matchDate = bs.date.includes(dateKey) || bs.date.includes(isoKey);
-      const matchTime = bs.time.includes(timeStr);
-      return matchDate && matchTime;
+      const bsTime = String(bs.time || bs.date || '');
+      const cleanTimeStr = timeStr.trim();
+      const cleanTimeNoColon = cleanTimeStr.replace(':', '');
+
+      const matchTime = bsTime.includes(cleanTimeStr) || 
+                        bsTime.includes(cleanTimeNoColon) || 
+                        (bs.slotId && bs.slotId.includes(cleanTimeNoColon));
+
+      if (!matchTime) return false;
+
+      // 1. Check exact ISO date key or slotId match
+      if ((bs as any).dateKey && (bs as any).dateKey === targetIsoKey) return true;
+      if (bs.slotId && bs.slotId.includes(targetIsoKey)) return true;
+      if (bs.date && bs.date.includes(targetIsoKey)) return true;
+
+      // 2. Check Portuguese text or slash date matches
+      const slotTxt = String(bs.date || '').toLowerCase();
+      const matchText = slotTxt.includes(`${targetDayNum} de ${targetMonthName}`) ||
+                        slotTxt.includes(`${dayPadded} de ${targetMonthName}`) ||
+                        slotTxt.includes(`${dayPadded}/${monthPadded}`) ||
+                        slotTxt.includes(`${targetDayNum}/${date.getMonth() + 1}`);
+
+      return matchText;
     });
   };
 
@@ -117,6 +148,9 @@ const ScheduleWidget: React.FC<{
     if (!d1) return false;
     return d1.getFullYear() === year && d1.getMonth() === month && d1.getDate() === dayNum;
   };
+
+  // Filter out booked slots so they disappear completely
+  const visibleAvailableHours = availableHours.filter(timeStr => !isSlotBooked(selectedDate, timeStr));
 
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-300">
@@ -205,41 +239,31 @@ const ScheduleWidget: React.FC<{
           </span>
 
           <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-            {availableHours.map((timeStr) => {
-              const isSelectedTime = selectedTime === timeStr;
-              const isBooked = isSlotBooked(selectedDate, timeStr);
-
-              if (isBooked) {
+            {visibleAvailableHours.length === 0 ? (
+              <div className="col-span-2 text-center py-6 text-xs text-slate-400 font-bold bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                Nenhum horário disponível para este dia.
+              </div>
+            ) : (
+              visibleAvailableHours.map((timeStr) => {
+                const isSelectedTime = selectedTime === timeStr;
                 return (
                   <button
                     key={timeStr}
                     type="button"
-                    disabled
-                    className="py-2.5 px-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-350 border border-slate-200 line-through cursor-not-allowed text-center opacity-50 select-none"
-                    title="Horário já reservado por outro participante"
+                    onClick={() => handleSelectTime(timeStr)}
+                    className={`
+                      py-2.5 px-3 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer
+                      ${isSelectedTime
+                        ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-500/20 scale-105'
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-orange-300 hover:bg-orange-50/50'
+                      }
+                    `}
                   >
-                    {timeStr} (Reservado)
+                    {timeStr}
                   </button>
                 );
-              }
-
-              return (
-                <button
-                  key={timeStr}
-                  type="button"
-                  onClick={() => handleSelectTime(timeStr)}
-                  className={`
-                    py-2.5 px-3 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer
-                    ${isSelectedTime
-                      ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-500/20 scale-105'
-                      : 'bg-white border-slate-200 text-slate-700 hover:border-orange-300 hover:bg-orange-50/50'
-                    }
-                  `}
-                >
-                  {timeStr}
-                </button>
-              );
-            })}
+              })
+            )}
           </div>
         </div>
       </div>
