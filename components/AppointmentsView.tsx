@@ -18,6 +18,9 @@ import {
 import { Lead } from '../types';
 import { storageService } from '../services/storage';
 
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+
 interface AppointmentsViewProps {
   leads: Lead[];
 }
@@ -44,71 +47,77 @@ const AppointmentsView: React.FC<AppointmentsViewProps> = ({ leads }) => {
   const [statusFilter, setStatusFilter] = useState<'todos' | 'Agendado' | 'Concluído' | 'Cancelado'>('todos');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'upcoming'>('all');
 
-  const fetchAppointments = async () => {
+  useEffect(() => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const bookedSlots = await storageService.getBookedSlots(''); // Fetches all booked slots
-      
-      const items: AppointmentItem[] = [];
+      const q = query(collection(db, 'booked_slots'), orderBy('createdAt', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const slotsDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const items: AppointmentItem[] = [];
 
-      // 1. Process booked slots from Firestore collection `booked_slots`
-      bookedSlots.forEach(slot => {
-        const matchingLead = leads.find(l => 
-          (slot as any).leadEmail && l.email.toLowerCase() === String((slot as any).leadEmail).toLowerCase()
-        ) || leads.find(l => (slot as any).leadName && l.name.toLowerCase().includes(String((slot as any).leadName).toLowerCase()));
+        slotsDocs.forEach((slot: any) => {
+          const matchingLead = leads.find(l => 
+            slot.leadEmail && l.email.toLowerCase() === String(slot.leadEmail).toLowerCase()
+          ) || leads.find(l => slot.leadName && l.name.toLowerCase() === String(slot.leadName).toLowerCase())
+          || leads.find(l => slot.leadPhone && l.phone && l.phone.replace(/\D/g, '') === String(slot.leadPhone).replace(/\D/g, ''));
 
-        items.push({
-          id: slot.slotId,
-          formId: (slot as any).formId || '',
-          leadId: matchingLead?.id || '',
-          leadName: (slot as any).leadName || matchingLead?.name || 'Lead sem nome',
-          leadEmail: (slot as any).leadEmail || matchingLead?.email || 'N/A',
-          leadPhone: matchingLead?.phone || (slot as any).leadPhone || '',
-          meetingTitle: 'Reunião 60 min',
-          dateStr: slot.date,
-          timeStr: slot.time,
-          fullDateText: slot.date,
-          status: (slot as any).status || 'Agendado',
-          createdAt: (slot as any).createdAt || new Date().toISOString()
-        });
-      });
-
-      // 2. Also inspect leads' interactions and observations for scheduled meetings
-      leads.forEach(lead => {
-        const meetingInteractions = (lead.interactions || []).filter(i => i.type === 'Reunião');
-        meetingInteractions.forEach(mi => {
-          // Avoid duplicate if already matched
-          const exists = items.some(it => it.leadId === lead.id || (it.leadEmail && it.leadEmail === lead.email));
-          if (!exists) {
-            items.push({
-              id: mi.id,
-              leadId: lead.id,
-              leadName: lead.name,
-              leadEmail: lead.email,
-              leadPhone: lead.phone,
-              meetingTitle: 'Reunião Agendada',
-              dateStr: mi.date,
-              timeStr: '',
-              fullDateText: mi.description,
-              status: 'Agendado',
-              createdAt: mi.date
-            });
+          let displayName = slot.leadName;
+          if (!displayName || displayName === 'Lead sem nome' || displayName === 'Lead s/ Nome') {
+            displayName = matchingLead?.name || (slot.leadEmail ? slot.leadEmail.split('@')[0] : 'Lead sem nome');
           }
+
+          items.push({
+            id: slot.id,
+            formId: slot.formId || '',
+            leadId: matchingLead?.id || '',
+            leadName: displayName,
+            leadEmail: slot.leadEmail || matchingLead?.email || 'N/A',
+            leadPhone: slot.leadPhone || matchingLead?.phone || '',
+            meetingTitle: 'Reunião 60 min',
+            dateStr: slot.date || '',
+            timeStr: slot.time || '',
+            fullDateText: slot.date || slot.time || '',
+            status: slot.status || 'Agendado',
+            createdAt: slot.createdAt || new Date().toISOString()
+          });
         });
+
+        // Also check leads' interactions for meetings
+        leads.forEach(lead => {
+          const meetingInteractions = (lead.interactions || []).filter(i => i.type === 'Reunião');
+          meetingInteractions.forEach(mi => {
+            const exists = items.some(it => it.leadId === lead.id || (it.leadEmail && it.leadEmail === lead.email));
+            if (!exists) {
+              items.push({
+                id: mi.id,
+                leadId: lead.id,
+                leadName: lead.name || 'Lead sem nome',
+                leadEmail: lead.email || 'N/A',
+                leadPhone: lead.phone || '',
+                meetingTitle: 'Reunião Agendada',
+                dateStr: mi.date,
+                timeStr: '',
+                fullDateText: mi.description,
+                status: 'Agendado',
+                createdAt: mi.date
+              });
+            }
+          });
+        });
+
+        items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setAppointments(items);
+        setLoading(false);
+      }, (err) => {
+        console.error('Error listening to booked_slots:', err);
+        setLoading(false);
       });
 
-      // Sort newest meetings first
-      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setAppointments(items);
+      return () => unsubscribe();
     } catch (err) {
-      console.error('Error loading appointments:', err);
-    } finally {
+      console.error('Failed to setup booked_slots listener:', err);
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchAppointments();
   }, [leads]);
 
   const toggleStatus = async (item: AppointmentItem) => {

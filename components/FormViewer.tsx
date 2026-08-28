@@ -718,15 +718,40 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
       let leadEstimatedValue = 0;
 
       Object.values(mappedAnswers).forEach((ans: any) => {
-        if (ans.crmField === 'name' && ans.value) leadName = String(ans.value);
-        if (ans.crmField === 'email' && ans.value) leadEmail = String(ans.value).trim().toLowerCase();
-        if (ans.crmField === 'phone' && ans.value) leadPhone = String(ans.value).trim();
-        if (ans.crmField === 'company' && ans.value) leadCompany = String(ans.value);
-        if (ans.crmField === 'estimatedValue' && ans.value) leadEstimatedValue = Number(ans.value) || 0;
+        const valStr = String(ans.value || '').trim();
+        const titleLower = String(ans.questionTitle || '').toLowerCase();
+
+        // 1. Name detection (via crmField or question title keywords)
+        if (ans.crmField === 'name' && valStr) {
+          leadName = valStr;
+        } else if (!leadName && (titleLower.includes('nome') || titleLower.includes('name')) && valStr && !valStr.includes('@')) {
+          leadName = valStr;
+        }
+
+        // 2. Email detection
+        if (ans.crmField === 'email' && valStr) {
+          leadEmail = valStr.toLowerCase();
+        } else if (!leadEmail && (titleLower.includes('email') || titleLower.includes('e-mail') || valStr.includes('@'))) {
+          leadEmail = valStr.toLowerCase();
+        }
+
+        // 3. Phone detection
+        if (ans.crmField === 'phone' && valStr) {
+          leadPhone = valStr;
+        } else if (!leadPhone && (titleLower.includes('telefone') || titleLower.includes('whatsapp') || titleLower.includes('celular') || titleLower.includes('fone'))) {
+          leadPhone = valStr;
+        }
+
+        if (ans.crmField === 'company' && valStr) leadCompany = valStr;
+        if (ans.crmField === 'estimatedValue' && valStr) leadEstimatedValue = Number(valStr) || 0;
       });
 
       if (!leadName) {
-        leadName = leadEmail ? leadEmail.split('@')[0] : 'Lead s/ Nome';
+        // Fallback: pick first short answer string if available
+        const firstShortText = Object.values(mappedAnswers).find((ans: any) => 
+          ans.value && typeof ans.value === 'string' && !ans.value.includes('@') && String(ans.value).length > 1 && String(ans.value).length < 60
+        );
+        leadName = firstShortText ? String(firstShortText.value) : (leadEmail ? leadEmail.split('@')[0] : 'Lead sem nome');
       }
 
       const userAgent = window.navigator.userAgent.toLowerCase();
@@ -972,7 +997,8 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
             date: scheduleVal,
             time: scheduleVal,
             leadName,
-            leadEmail
+            leadEmail,
+            leadPhone
           });
         } catch (slotErr) {
           console.warn('Could not save booked slot:', slotErr);
