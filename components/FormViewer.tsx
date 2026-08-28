@@ -662,6 +662,16 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
 
     setHistoryIdx(prev => [...prev, currentIdx]);
 
+    // Ensure schedule block is ALWAYS presented if present in form and not yet answered
+    const scheduleBlockIdx = form.blocks.findIndex(b => b.type === 'schedule');
+    const hasUnansweredSchedule = scheduleBlockIdx !== -1 && !answers[form.blocks[scheduleBlockIdx].id] && currentIdx !== scheduleBlockIdx;
+
+    if (hasUnansweredSchedule && (nextIdx >= form.blocks.length || (form.blocks[nextIdx] && form.blocks[nextIdx].type === 'thank_you'))) {
+      setCurrentIdx(scheduleBlockIdx);
+      await saveProgressToDb(answers, scheduleBlockIdx);
+      return;
+    }
+
     if (nextIdx >= form.blocks.length || (form.blocks[nextIdx] && form.blocks[nextIdx].type === 'thank_you')) {
       // Completed! Submit form, save lead and fire Meta Pixel Lead event
       await triggerFinalSubmit(answers);
