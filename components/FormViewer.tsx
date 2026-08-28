@@ -935,6 +935,17 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
           };
           (window as any).fbq?.('track', 'Lead', leadPayload);
           console.log('🎯 [Meta Pixel] Evento "Lead" disparado com sucesso para a Meta:', leadPayload);
+
+          // If a meeting schedule block was completed, ALSO fire official Meta 'Schedule' event!
+          const scheduleBlock = form.blocks.find(b => b.type === 'schedule');
+          if (scheduleBlock && finalAnswers[scheduleBlock.id]) {
+            const schedulePayload = {
+              content_name: scheduleBlock.scheduleConfig?.meetingTitle || form.settings.publicTitle || 'Agendamento de Reunião',
+              status: 'booked'
+            };
+            (window as any).fbq?.('track', 'Schedule', schedulePayload);
+            console.log('📅 [Meta Pixel] Evento "Schedule" (Agendamento de Reunião) disparado com sucesso para a Meta:', schedulePayload);
+          }
         } catch (fbError) {
           console.warn('⚠️ [Meta Pixel Error] Lead tracking failed:', fbError);
         }

@@ -17,6 +17,7 @@ import FormList from './components/FormList';
 import FormEditor from './components/FormEditor';
 import FormViewer from './components/FormViewer';
 import FormResponsesView from './components/FormResponsesView';
+import AppointmentsView from './components/AppointmentsView';
 import { Lock, Flame, Mail, Key } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -411,6 +412,10 @@ const App: React.FC = () => {
             setIsLeadModalOpen(true);
           }}
         />
+      )}
+
+      {activeTab === 'appointments' && (
+        <AppointmentsView leads={leads} />
       )}
 
       {activeTab === 'users' && (
