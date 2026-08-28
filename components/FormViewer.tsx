@@ -1033,11 +1033,44 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
       const scheduleBlock = form.blocks.find(b => b.type === 'schedule');
       if (scheduleBlock && finalAnswers[scheduleBlock.id]) {
         const scheduleVal = String(finalAnswers[scheduleBlock.id]);
+        
+        // Parse dateKey (YYYY-MM-DD) and time (HH:mm) from scheduleVal
+        let isoDateKey = '';
+        const isoMatch = scheduleVal.match(/(\d{4}-\d{2}-\d{2})/);
+        const slashMatch = scheduleVal.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+
+        if (isoMatch) {
+          isoDateKey = isoMatch[1];
+        } else if (slashMatch) {
+          const d = slashMatch[1].padStart(2, '0');
+          const m = slashMatch[2].padStart(2, '0');
+          const y = slashMatch[3];
+          isoDateKey = `${y}-${m}-${d}`;
+        } else {
+          // Parse Portuguese month names e.g. "01 de setembro de 2026"
+          const ptMatch = scheduleVal.match(/(\d{1,2})\s+de\s+([a-zç]+)\s+de\s+(\d{4})/i);
+          if (ptMatch) {
+            const d = ptMatch[1].padStart(2, '0');
+            const monthName = ptMatch[2].toLowerCase();
+            const y = ptMatch[3];
+            const monthNamesArr = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+            const mIdx = monthNamesArr.findIndex(m => m === monthName);
+            if (mIdx !== -1) {
+              const m = String(mIdx + 1).padStart(2, '0');
+              isoDateKey = `${y}-${m}-${d}`;
+            }
+          }
+        }
+
+        const timeMatch = scheduleVal.match(/(\d{1,2}:\d{2})/);
+        const extractedTime = timeMatch ? timeMatch[1].padStart(5, '0') : scheduleVal;
+
         try {
           await storageService.saveBookedSlot({
             formId: form.id,
             date: scheduleVal,
-            time: scheduleVal,
+            dateKey: isoDateKey,
+            time: extractedTime,
             leadName,
             leadEmail,
             leadPhone

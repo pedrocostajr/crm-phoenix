@@ -38,6 +38,7 @@ interface AppointmentItem {
   leadPhone: string;
   meetingTitle: string;
   dateStr: string;
+  dateKey?: string;
   timeStr: string;
   fullDateText: string;
   status: 'Agendado' | 'Concluído' | 'Cancelado';
@@ -95,37 +96,11 @@ const AppointmentsView: React.FC<AppointmentsViewProps> = ({ leads }) => {
               leadPhone: slot.leadPhone || matchingLead?.phone || '',
               meetingTitle: 'Reunião 60 min',
               dateStr: slot.date || '',
+              dateKey: slot.dateKey || '',
               timeStr: slot.time || '',
               fullDateText: slot.date || slot.time || '',
               status: slot.status || 'Agendado',
               createdAt: slot.createdAt || new Date().toISOString()
-            });
-          });
-
-          // Also check leads' interactions for meetings
-          (leads || []).forEach(lead => {
-            if (!lead) return;
-            const meetingInteractions = (lead.interactions || []).filter(i => i && i.type === 'Reunião');
-            meetingInteractions.forEach(mi => {
-              const exists = items.some(it => 
-                (it.leadId && it.leadId === lead.id) || 
-                (safeLower(it.leadEmail) && safeLower(it.leadEmail) === safeLower(lead.email))
-              );
-              if (!exists) {
-                items.push({
-                  id: mi.id,
-                  leadId: lead.id,
-                  leadName: lead.name || 'Lead sem nome',
-                  leadEmail: lead.email || 'N/A',
-                  leadPhone: lead.phone || '',
-                  meetingTitle: 'Reunião Agendada',
-                  dateStr: mi.date || '',
-                  timeStr: '',
-                  fullDateText: mi.description || 'Reunião agendada',
-                  status: 'Agendado',
-                  createdAt: mi.date || new Date().toISOString()
-                });
-              }
             });
           });
 
@@ -207,20 +182,21 @@ const AppointmentsView: React.FC<AppointmentsViewProps> = ({ leads }) => {
   const getAppointmentsForDay = (dayNum: number) => {
     const paddedDay = dayNum < 10 ? `0${dayNum}` : `${dayNum}`;
     const paddedMonth = month + 1 < 10 ? `0${month + 1}` : `${month + 1}`;
-    
-    // Format strings to match: e.g. "28/08/2026", "28 de agosto", "terça-feira, 28"
+    const targetIsoKey = `${year}-${paddedMonth}-${paddedDay}`;
     const slashFormat = `${paddedDay}/${paddedMonth}/${year}`;
+    const targetMonthName = monthNames[month].toLowerCase();
 
     return appointments.filter(app => {
-      const txt = safeLower(app.fullDateText);
-      const matchSlash = txt.includes(slashFormat);
-      const matchDay = txt.includes(`${dayNum} de ${monthNames[month].toLowerCase()}`) || txt.includes(`${paddedDay} de ${monthNames[month].toLowerCase()}`);
-      
-      // Also match ISO format 2026-08-28
-      const isoFormat = `${year}-${paddedMonth}-${paddedDay}`;
-      const matchIso = txt.includes(isoFormat);
+      // 1. Check exact dateKey if present
+      if (app.dateKey && app.dateKey === targetIsoKey) return true;
 
-      return matchSlash || matchDay || matchIso;
+      // 2. Check fullDateText for date strings
+      const txt = safeLower(app.fullDateText);
+      if (txt.includes(targetIsoKey)) return true;
+      if (txt.includes(slashFormat)) return true;
+      
+      const matchPtDay = txt.includes(`${dayNum} de ${targetMonthName}`) || txt.includes(`${paddedDay} de ${targetMonthName}`);
+      return matchPtDay;
     });
   };
 
