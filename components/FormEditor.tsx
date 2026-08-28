@@ -108,6 +108,7 @@ const BLOCK_TYPES: { type: BlockType; label: string; desc: string }[] = [
   { type: 'nps', label: 'NPS', desc: 'Métrica de fidelidade 0-10' },
   { type: 'file_upload', label: 'Upload de Arquivo', desc: 'Upload de comprovantes/anexos' },
   { type: 'terms_consent', label: 'Termos e Aceite', desc: 'Consentimento de dados e LGPD' },
+  { type: 'schedule', label: 'Agendamento de Reunião', desc: 'Calendário interativo de reunião / videochamada' },
   { type: 'hidden', label: 'Campo Oculto', desc: 'Parâmetro passado via URL' },
   { type: 'thank_you', label: 'Tela de Agradecimento', desc: 'Encerramento com mensagem' }
 ];
@@ -255,11 +256,21 @@ const FormEditor: React.FC<FormEditorProps> = ({ formId, onBack }) => {
     const newBlock: QuestionBlock = {
       id: `block_${Date.now()}`,
       type,
-      title: type === 'welcome' ? 'Boas-vindas!' : type === 'thank_you' ? 'Obrigado!' : 'Título da Pergunta...',
+      title: type === 'welcome' ? 'Boas-vindas!' : type === 'thank_you' ? 'Obrigado!' : type === 'schedule' ? 'Agora agende um horário no calendário abaixo' : 'Título da Pergunta...',
+      description: type === 'schedule' ? 'Selecione a melhor data e horário para nossa reunião' : undefined,
       required: type !== 'welcome' && type !== 'thank_you',
       internalId,
       crmField: ['name', 'email', 'phone', 'company', 'estimatedValue', 'observations'].includes(type) ? type : ''
     };
+
+    if (type === 'schedule') {
+      newBlock.scheduleConfig = {
+        meetingTitle: 'Bate papo sobre Tráfego Pago',
+        durationMinutes: 60,
+        availableHours: ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'],
+        availableDays: [1, 2, 3, 4, 5]
+      };
+    }
 
     // Pre-populate selection choices if choice blocks
     if (['single_choice', 'multiple_choice', 'dropdown', 'button_options'].includes(type)) {
@@ -978,6 +989,40 @@ const FormEditor: React.FC<FormEditorProps> = ({ formId, onBack }) => {
                       onChange={(e) => handleUpdateBlock(activeBlock.id, { placeholder: e.target.value })}
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-medium text-slate-800"
                     />
+                  </div>
+                )}
+
+                {/* Schedule Config Controls */}
+                {activeBlock.type === 'schedule' && (
+                  <div className="space-y-4 pt-2 border-t border-slate-100">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome da Reunião</label>
+                      <input
+                        type="text"
+                        value={activeBlock.scheduleConfig?.meetingTitle || 'Bate papo sobre Tráfego Pago'}
+                        onChange={(e) => handleUpdateBlock(activeBlock.id, {
+                          scheduleConfig: { ...(activeBlock.scheduleConfig || {}), meetingTitle: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duração da Reunião</label>
+                      <select
+                        value={activeBlock.scheduleConfig?.durationMinutes || 60}
+                        onChange={(e) => handleUpdateBlock(activeBlock.id, {
+                          scheduleConfig: { ...(activeBlock.scheduleConfig || {}), durationMinutes: Number(e.target.value) }
+                        })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-medium text-slate-800"
+                      >
+                        <option value={15}>15 minutos</option>
+                        <option value={30}>30 minutos</option>
+                        <option value={45}>45 minutos</option>
+                        <option value={60}>60 minutos (1 hora)</option>
+                        <option value={90}>90 minutos (1h 30m)</option>
+                      </select>
+                    </div>
                   </div>
                 )}
 

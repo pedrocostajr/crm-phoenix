@@ -72,7 +72,7 @@ export type BlockType =
   | 'welcome' | 'thank_you' | 'name' | 'email' | 'phone' | 'short_text' | 'long_text' 
   | 'number' | 'currency' | 'date' | 'time' | 'address' | 'cpf_cnpj' | 'url' 
   | 'single_choice' | 'multiple_choice' | 'dropdown' | 'button_options' | 'yes_no' 
-  | 'scale' | 'stars' | 'nps' | 'file_upload' | 'terms_consent' | 'hidden';
+  | 'scale' | 'stars' | 'nps' | 'file_upload' | 'terms_consent' | 'hidden' | 'schedule';
 
 export interface QuestionBlock {
   id: string;
@@ -88,6 +88,12 @@ export interface QuestionBlock {
   crmField?: string;
   options?: { id: string; label: string; value: string }[];
   rules?: ConditionalRule[];
+  scheduleConfig?: {
+    meetingTitle?: string;
+    durationMinutes?: number;
+    availableHours?: string[];
+    availableDays?: number[]; // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  };
 }
 
 export interface FormSettings {

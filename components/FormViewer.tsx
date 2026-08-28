@@ -2,13 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, 
   ChevronRight, 
+  ChevronLeft,
   Upload, 
   Check, 
   AlertCircle, 
   Star, 
   ChevronDown, 
   Lock,
-  Loader2
+  Loader2,
+  Calendar,
+  Clock
 } from 'lucide-react';
 import { storageService } from '../services/storage';
 import { Form, QuestionBlock, FormResponse, FormResponseValue, Lead } from '../types';
@@ -16,6 +19,212 @@ import { Form, QuestionBlock, FormResponse, FormResponseValue, Lead } from '../t
 interface FormViewerProps {
   formSlug: string;
 }
+
+const ScheduleWidget: React.FC<{
+  block: QuestionBlock;
+  primaryColor: string;
+  value: any;
+  onChange: (val: string) => void;
+}> = ({ block, primaryColor, value, onChange }) => {
+  const meetingTitle = block.scheduleConfig?.meetingTitle || 'Bate papo sobre Tráfego Pago';
+  const duration = block.scheduleConfig?.durationMinutes || 60;
+  const availableHours = block.scheduleConfig?.availableHours || ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
+
+  const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d;
+  });
+  const [selectedTime, setSelectedTime] = useState<string | null>('17:00');
+
+  const year = currentMonthDate.getFullYear();
+  const month = currentMonthDate.getMonth();
+
+  const monthNames = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayOfWeek = new Date(year, month, 1).getDay();
+
+  const daysArray: (number | null)[] = [];
+  for (let i = 0; i < firstDayOfWeek; i++) {
+    daysArray.push(null);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    daysArray.push(d);
+  }
+
+  const handlePrevMonth = () => {
+    setCurrentMonthDate(new Date(year, month - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonthDate(new Date(year, month + 1, 1));
+  };
+
+  const formatSelection = (date: Date, time: string) => {
+    const dayStr = date.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    return `${dayStr} às ${time} (${meetingTitle} • ${duration} minutos)`;
+  };
+
+  const handleSelectDay = (day: number) => {
+    const newDate = new Date(year, month, day);
+    setSelectedDate(newDate);
+    if (selectedTime) {
+      onChange(formatSelection(newDate, selectedTime));
+    }
+  };
+
+  const handleSelectTime = (time: string) => {
+    setSelectedTime(time);
+    if (selectedDate) {
+      onChange(formatSelection(selectedDate, time));
+    }
+  };
+
+  useEffect(() => {
+    if (!value && selectedDate && selectedTime) {
+      onChange(formatSelection(selectedDate, selectedTime));
+    }
+  }, []);
+
+  const isSameDay = (d1: Date | null, dayNum: number) => {
+    if (!d1) return false;
+    return d1.getFullYear() === year && d1.getMonth() === month && d1.getDate() === dayNum;
+  };
+
+  return (
+    <div className="w-full space-y-6 animate-in fade-in duration-300">
+      {/* Top Meeting Info Card */}
+      <div className="flex items-center gap-3 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200/80 p-4 rounded-2xl">
+        <div className="p-3 bg-orange-500 text-white rounded-xl shadow-md shadow-orange-500/20 shrink-0">
+          <Calendar size={22} />
+        </div>
+        <div>
+          <h4 className="font-bold text-slate-800 text-sm md:text-base">{meetingTitle}</h4>
+          <div className="flex items-center gap-1 text-slate-500 text-xs font-semibold mt-0.5">
+            <Clock size={12} className="text-orange-500" />
+            <span>{duration} minutos</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Calendar & Hours Container */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+        
+        {/* Left Column: Month Calendar */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Selecione uma data</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-xs font-black text-slate-700">
+                {monthNames[month]} {year}
+              </span>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Weekday headers */}
+          <div className="grid grid-cols-7 text-center text-[10px] font-black text-slate-400 uppercase">
+            <span>DOM</span><span>SEG</span><span>TER</span><span>QUA</span><span>QUI</span><span>SEX</span><span>SÁB</span>
+          </div>
+
+          {/* Days Grid */}
+          <div className="grid grid-cols-7 gap-1">
+            {daysArray.map((dayNum, idx) => {
+              if (dayNum === null) {
+                return <div key={`empty_${idx}`} className="h-9"></div>;
+              }
+              const isSelected = isSameDay(selectedDate, dayNum);
+              return (
+                <button
+                  key={`day_${dayNum}`}
+                  type="button"
+                  onClick={() => handleSelectDay(dayNum)}
+                  className={`
+                    h-9 w-9 mx-auto rounded-full font-bold text-xs flex items-center justify-center transition-all cursor-pointer
+                    ${isSelected
+                      ? 'bg-orange-500 text-white shadow-md shadow-orange-500/30 scale-105 font-black'
+                      : 'hover:bg-orange-50 text-slate-700 hover:text-orange-600'
+                    }
+                  `}
+                >
+                  {dayNum}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right Column: Time Slots */}
+        <div className="space-y-4 border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Calendar size={14} className="text-orange-500" />
+            {selectedDate
+              ? selectedDate.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })
+              : 'Selecione um dia'
+            }
+          </span>
+
+          <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+            {availableHours.map((timeStr) => {
+              const isSelectedTime = selectedTime === timeStr;
+              return (
+                <button
+                  key={timeStr}
+                  type="button"
+                  onClick={() => handleSelectTime(timeStr)}
+                  className={`
+                    py-2.5 px-3 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer
+                    ${isSelectedTime
+                      ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-500/20 scale-105'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-orange-300 hover:bg-orange-50/50'
+                    }
+                  `}
+                >
+                  {timeStr}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Confirmation Box */}
+      {selectedDate && selectedTime && (
+        <div className="bg-orange-50/80 border border-orange-200/80 rounded-2xl p-4 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-300">
+          <div className="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-black shrink-0">
+            ✓
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-800 capitalize">
+              {selectedDate.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })} às {selectedTime}
+            </p>
+            <p className="text-[11px] text-slate-500 font-medium">
+              {meetingTitle} • {duration} minutos
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
   const [form, setForm] = useState<Form | null>(null);
@@ -1267,6 +1476,15 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
                   </p>
                 </div>
               )}
+
+              {activeBlock.type === 'schedule' && (
+                <ScheduleWidget
+                  block={activeBlock}
+                  primaryColor={form.theme.primaryColor}
+                  value={answers[activeBlock.id]}
+                  onChange={(val) => handleValueChange(val)}
+                />
+              )}
             </div>
 
             {/* Validation errors */}
@@ -1283,11 +1501,13 @@ const FormViewer: React.FC<FormViewerProps> = ({ formSlug }) => {
                   type="submit"
                   disabled={submitting}
                   onClick={handleNext}
-                  className="py-3 px-6 text-sm font-bold rounded-xl transition-all shadow-md hover:scale-[1.02] active:scale-95 flex items-center gap-1 text-white"
+                  className="py-3.5 px-8 text-sm font-bold rounded-xl transition-all shadow-md hover:scale-[1.02] active:scale-95 flex items-center gap-2 text-white"
                   style={{ backgroundColor: form.theme.buttonColor, color: form.theme.buttonTextColor, borderRadius: form.theme.borderRadius }}
                 >
                   {submitting ? (
-                    <Loader2 className="animate-spin text-white" size={16} />
+                    <Loader2 className="animate-spin text-white" size={18} />
+                  ) : activeBlock.type === 'schedule' ? (
+                    <>✓ Agendar horário</>
                   ) : (
                     <>Avançar <ChevronRight size={16} /></>
                   )}
